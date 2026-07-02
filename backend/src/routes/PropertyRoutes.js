@@ -4,18 +4,19 @@ import {
   getAllProperties,
   removeProperty,
   updateProperty,
-  getPropertiesByFilter 
+  getPropertiesByFilter
 } from "../controllers/propertyController.js";
 
 import { handleChat } from "../controllers/chatController.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
 router.get("/api/properties", getAllProperties);
-router.post("/api/properties", addProperty);
-router.delete("/api/properties/:id", removeProperty);
-router.put("/api/properties/:id", updateProperty);
-router.post("/api/chat", handleChat);
+router.post("/api/properties", requireAuth, addProperty);
+router.delete("/api/properties/:id", requireAuth, removeProperty);
+router.put("/api/properties/:id", requireAuth, updateProperty);
+router.post("/api/chat", requireAuth, handleChat);
 router.get("/api/search", getPropertiesByFilter);
 
 export default router;

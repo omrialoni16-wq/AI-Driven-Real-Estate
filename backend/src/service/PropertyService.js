@@ -1,11 +1,65 @@
 import Property from "../models/Property.js";
 
-export const fetchAllProperties = async () => {
+export const fetchPropertiesWithPagination = async (
+  filters = {},
+  page = 1,
+  limit = 21,
+) => {
   try {
-    const properties = await Property.find().sort({ _id: -1 }).limit(300);
-    return properties;
+    const query = {};
+
+    const { city, maxPrice, type } = filters;
+    if (city?.trim()) {
+      query.city = { $regex: new RegExp(city.trim(), "i") };
+    }
+
+    if (type?.trim() && type !== "All") {
+      query.type = type.trim();
+    }
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 21);
+    const maxProperties = 300;
+    const skip = (pageNum - 1) * limitNum;
+    const adjustedLimit = Math.min(limitNum, maxProperties - skip);
+
+    const priceFilter =
+      maxPrice !== undefined && maxPrice !== "" ? Number(maxPrice) : null;
+
+    const priceStages = priceFilter
+      ? [
+          { $addFields: { priceAsNumber: { $toDouble: "$price" } } },
+          { $match: { priceAsNumber: { $lte: priceFilter } } },
+        ]
+      : [];
+
+    const [countResult, properties] = await Promise.all([
+      Property.aggregate([
+        { $match: query },
+        ...priceStages,
+        { $count: "total" },
+      ]),
+      Property.aggregate([
+        { $match: query },
+        ...priceStages,
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: adjustedLimit },
+        { $unset: "embedding" },
+      ]),
+    ]);
+
+    const totalProperties = Math.min(countResult[0]?.total ?? 0, maxProperties);
+    const totalPages = Math.ceil(totalProperties / limitNum);
+
+    return {
+      properties,
+      totalProperties,
+      totalPages,
+      currentPage: pageNum,
+    };
   } catch (error) {
-    console.error("Error fetching properties:", error);
+    console.error("Error fetching properties with pagination:", error);
     throw error;
   }
 };
@@ -44,16 +98,9 @@ export const editProperty = async (id, updatedData) => {
   }
 };
 
-/**
- * Service to handle business logic for filtering properties.
- * If filters are empty or omitted, it gracefully falls back to returning all properties.
- * * @param {Object} filters - Active search criteria from the client
- * @returns {Promise<Array>} - Array of matching or all apartment documents
- */
 export const filterPropertiesService = async (filters = {}) => {
   const query = {};
-  
-  // Destructure safely, fallback to an empty object if filters is null/undefined
+
   const {
     city,
     type,
@@ -65,18 +112,14 @@ export const filterPropertiesService = async (filters = {}) => {
     maxSize,
     tags,
   } = filters || {};
-
-  // --- 1. Text Searches ---
   if (city?.trim()) {
     query.city = { $regex: new RegExp(city.trim(), "i") };
   }
 
-  // Treat "All" from the frontend as no filter
   if (type?.trim() && type !== "All") {
     query.type = type.trim();
   }
 
-  // --- 2. Numeric Range Queries ---
   if (minPrice !== undefined || maxPrice !== undefined) {
     query.price = {};
     if (minPrice !== undefined && minPrice !== "")
@@ -95,21 +138,16 @@ export const filterPropertiesService = async (filters = {}) => {
     if (Object.keys(query.size).length === 0) delete query.size;
   }
 
-  // --- 3. Exact Numeric Queries ---
   if (rooms !== undefined && rooms !== "") query.rooms = Number(rooms);
   if (floor !== undefined && floor !== "") query.floor = Number(floor);
 
-  // --- 4. Array Matching ---
   if (Array.isArray(tags) && tags.length > 0) {
     query.tags = { $all: tags };
   }
 
-  // Senior Architectural Note:
-  // If `query` is completely empty here, `Property.find({})` will fetch everything.
-  // We keep the `.limit(100)` to safeguard database performance.
   return await Property.find(query)
-    .select("-embedding") // Exclude heavy vectors
-    .sort({ createdAt: -1 }) // Newest first
-    .limit(300) // Protect server memory from unbounded growth
-    .lean(); // Lightweight raw JSON conversion
+    .select("-embedding")
+    .sort({ createdAt: -1 })
+    .limit(1000)
+    .lean();
 };

@@ -1,20 +1,34 @@
 import {
-  fetchAllProperties,
   createProperty,
   deleteProperty,
   editProperty,
-  filterPropertiesService
+  filterPropertiesService,
+  fetchPropertiesWithPagination,
 } from "../service/PropertyService.js";
 
 export const getAllProperties = async (req, res) => {
   try {
-    const properties = await fetchAllProperties();
-    res.status(200).json(properties);
+    const { page = 1, limit = 21, city, maxPrice, type } = req.query;
+
+    const filters = {
+      city: city || "",
+      maxPrice: maxPrice || "",
+      type: type || "All",
+    };
+
+    const result = await fetchPropertiesWithPagination(filters, page, limit);
+
+    res.status(200).json({
+      success: true,
+      ...result,
+    });
   } catch (error) {
-    console.error("Error in controller", error);
-    res
-      .status(500)
-      .json({ message: "Server Error: Could not fetch properties" });
+    console.error("Error in getAllProperties controller", error);
+    res.status(500).json({
+      success: false,
+      message: "Server Error: Could not fetch properties",
+      error: error.message,
+    });
   }
 };
 
@@ -69,34 +83,24 @@ export const removeProperty = async (req, res) => {
   }
 };
 
-
-/**
- * HTTP Controller for property search operations.
- */
 export const getPropertiesByFilter = async (req, res) => {
   try {
-    // Senior Choice: Extract parameters from query string (GET requests)
-    // E.g., /api/properties/search?city=Tel+Aviv&minPrice=3000
     const filterPayload = req.query;
 
-    // Delegate business logic entirely to the service layer
     const properties = await filterPropertiesService(filterPayload);
 
-    // Return an explicit, structured standard JSON response
     return res.status(200).json({
       success: true,
       count: properties.length,
       data: properties,
     });
   } catch (error) {
-    // Contextual system logging for developers (internal metrics/monitoring)
     console.error(`[PropertyController][getPropertiesByFilter] Error:`, {
       query: req.query,
       error: error.message,
       timestamp: new Date().toISOString(),
     });
 
-    // Elegant error handling: Don't leak raw DB queries or stack traces to the client
     return res.status(500).json({
       success: false,
       message:

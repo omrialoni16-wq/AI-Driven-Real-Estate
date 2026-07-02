@@ -1,7 +1,18 @@
 import React, { useState } from "react";
 
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PROPERTY_TYPES } from "@/lib/propertyTypes";
+
 const EditPropertyForm = ({ property, onUpdate, onClose }) => {
-  // 1. אתחול המצב (State) עם הנתונים המקוריים של הדירה
   const [formData, setFormData] = useState({
     street: property.street || "",
     city: property.city || "",
@@ -9,10 +20,9 @@ const EditPropertyForm = ({ property, onUpdate, onClose }) => {
     rooms: property.rooms || 0,
     floor: property.floor || 0,
     size: property.size || 0,
-    type: property.type || "Sale",
+    type: property.type || PROPERTY_TYPES[0],
   });
 
-  // 2. פונקציה שמעדכנת את הנתונים בכל פעם שהמשתמש מקליד בשדות
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prevData) => ({
@@ -20,18 +30,18 @@ const EditPropertyForm = ({ property, onUpdate, onClose }) => {
       [name]: value,
     }));
   };
+
   const handleSubmit = (e) => {
-    e.preventDefault(); 
-    onUpdate(property._id, formData); 
+    e.preventDefault();
+    onUpdate(property._id, formData);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="property-form">
-      <h2>Edit Property Details</h2>
-
-      <div>
-        <label>Street:</label>
-        <input
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="grid gap-2">
+        <Label htmlFor="edit-street">רחוב</Label>
+        <Input
+          id="edit-street"
           type="text"
           name="street"
           value={formData.street}
@@ -40,9 +50,10 @@ const EditPropertyForm = ({ property, onUpdate, onClose }) => {
         />
       </div>
 
-      <div>
-        <label>City:</label>
-        <input
+      <div className="grid gap-2">
+        <Label htmlFor="edit-city">עיר</Label>
+        <Input
+          id="edit-city"
           type="text"
           name="city"
           value={formData.city}
@@ -51,9 +62,10 @@ const EditPropertyForm = ({ property, onUpdate, onClose }) => {
         />
       </div>
 
-      <div>
-        <label>Price (₪):</label>
-        <input
+      <div className="grid gap-2">
+        <Label htmlFor="edit-price">מחיר (₪)</Label>
+        <Input
+          id="edit-price"
           type="number"
           name="price"
           value={formData.price}
@@ -62,54 +74,73 @@ const EditPropertyForm = ({ property, onUpdate, onClose }) => {
         />
       </div>
 
-      <div>
-        <label>Rooms:</label>
-        <input
-          type="number"
-          name="rooms"
-          value={formData.rooms}
-          onChange={handleChange}
-          required
-        />
+      <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-2">
+          <Label htmlFor="edit-rooms">חדרים</Label>
+          <Input
+            id="edit-rooms"
+            type="number"
+            name="rooms"
+            value={formData.rooms}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="edit-floor">קומה</Label>
+          <Input
+            id="edit-floor"
+            type="number"
+            name="floor"
+            value={formData.floor}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="edit-size">שטח (מ״ר)</Label>
+          <Input
+            id="edit-size"
+            type="number"
+            name="size"
+            value={formData.size}
+            onChange={handleChange}
+            required
+          />
+        </div>
       </div>
 
-      <div>
-        <label>Floor:</label>
-        <input
-          type="number"
-          name="floor"
-          value={formData.floor}
-          onChange={handleChange}
-          required
-        />
+      <div className="grid gap-2">
+        <Label>סוג נכס</Label>
+        <Select
+          value={formData.type}
+          onValueChange={(value) => setFormData({ ...formData, type: value })}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PROPERTY_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                {type}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div>
-        <label>Size (sqm):</label>
-        <input
-          type="number"
-          name="size"
-          value={formData.size}
-          onChange={handleChange}
-          required
-        />
-      </div>
-
-      <div>
-        <label>Type:</label>
-        <select name="type" value={formData.type} onChange={handleChange}>
-          <option value="Sale">Sale</option>
-          <option value="Rent">Rent</option>
-        </select>
-      </div>
-
-      <div style={{ marginTop: "15px", display: "flex", gap: "10px" }}>
-        <button type="submit" className="submit-btn">
-          Save Changes
-        </button>
-        <button type="button" onClick={onClose} className="cancel-btn">
-          Cancel
-        </button>
+      <div className="mt-2 flex gap-3">
+        <Button type="submit" className="flex-1">
+          שמור שינויים
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1"
+          onClick={onClose}
+        >
+          ביטול
+        </Button>
       </div>
     </form>
   );

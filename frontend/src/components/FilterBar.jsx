@@ -1,42 +1,58 @@
-import React from "react";
+import { Search, Banknote } from "lucide-react";
+
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PROPERTY_TYPES } from "@/lib/propertyTypes";
 
 const FilterBar = ({ filters, setFilters }) => {
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFilters({ ...filters, [name]: value });
-  };
-
   return (
-    <div className="filter-bar">
-      <input
-        type="text"
-        name="city"
-        placeholder="Search by city..."
-        value={filters.city}
-        onChange={handleChange}
-        className="filter-input"
-      />
+    <div className="mb-8 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm sm:flex-row sm:items-center">
+      <div className="relative flex-1">
+        <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="text"
+          name="city"
+          placeholder="חיפוש לפי עיר…"
+          value={filters.city}
+          onChange={(e) => setFilters({ ...filters, city: e.target.value })}
+          className="ps-9"
+        />
+      </div>
 
-      <input
-        type="number"
-        name="maxPrice"
-        placeholder="Enter a price... "
-        value={filters.maxPrice}
-        onChange={handleChange}
-        className="filter-input"
-      />
+      <div className="relative flex-1">
+        <Banknote className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="number"
+          name="maxPrice"
+          placeholder="מחיר מקסימלי…"
+          value={filters.maxPrice}
+          onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
+          className="ps-9"
+        />
+      </div>
 
-      <select
-        name="type"
+      <Select
         value={filters.type}
-        onChange={handleChange}
-        className="filter-input"
+        onValueChange={(value) => setFilters({ ...filters, type: value })}
       >
-        <option value="All">All Types</option>
-        <option value="דירה">Apartment (דירה)</option>
-        <option value="פנטהאוז">Penthouse</option>
-        <option value="בית">House</option>
-      </select>
+        <SelectTrigger className="sm:w-56">
+          <SelectValue placeholder="כל הסוגים" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="All">כל הסוגים</SelectItem>
+          {PROPERTY_TYPES.map((type) => (
+            <SelectItem key={type} value={type}>
+              {type}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };
