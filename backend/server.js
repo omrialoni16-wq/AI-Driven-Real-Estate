@@ -1,6 +1,8 @@
 import "dotenv/config";
+import "./src/config/env.js";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import connectDB from "./src/config/db.js";
 import "./src/config/authDb.js";
@@ -9,8 +11,19 @@ import authRoutes from "./src/routes/authRoutes.js";
 
 const app = express();
 
-const ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
 
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  ...(process.env.CORS_EXTRA_ORIGINS
+    ? process.env.CORS_EXTRA_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+    : []),
+];
+
+app.use(helmet());
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -23,7 +36,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
 
 connectDB();

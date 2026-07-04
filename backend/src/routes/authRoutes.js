@@ -1,12 +1,21 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { login, logout, me, register } from "../controllers/authController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
-router.post("/api/auth/login", login);
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many attempts. Please try again later." },
+});
+
+router.post("/api/auth/login", authLimiter, login);
 router.post("/api/auth/logout", logout);
 router.get("/api/auth/me", requireAuth, me);
-router.post("/api/auth/register", requireAuth, register);
+router.post("/api/auth/register", requireAuth, authLimiter, register);
 
 export default router;

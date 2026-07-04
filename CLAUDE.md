@@ -50,8 +50,9 @@ frontend/
     context/
       AuthContext.jsx          # user/isLoading state, login()/logout(), GET /api/auth/me on mount
     components/
-      FilterBar.jsx            # City / maxPrice / type inputs
-      PropertyCard.jsx         # Single listing card (edit/delete buttons shown only when isAdmin)
+      FilterBar.jsx            # City / maxPrice / type inputs + type filter pills
+      PropertyCard.jsx         # Single listing card (edit/delete buttons shown only when isAdmin) — hand-styled, does NOT use ui/ primitives (see Styling)
+      PropertyCardSkeleton.jsx # Pulse-animated placeholder shown in the grid while properties are loading
       AddPropertyForm.jsx      # Modal form for manual add
       EditPropertyForm.jsx     # Modal form for editing
       LoginForm.jsx             # Email/password form used inside the login Dialog
@@ -69,7 +70,7 @@ frontend/
 
 **Frontend pattern:** All data lives in `App.jsx` state. Child components receive data and callbacks as props — they never fetch directly. `fetchProperties(page, filters)` is the single re-fetch function called after every mutation.
 
-**Styling:** Tailwind CSS v4 (via `@tailwindcss/vite`, no `tailwind.config.js`) + shadcn/ui (`new-york` style, components in `src/components/ui/`). Import alias `@/*` → `src/*` (configured in `vite.config.js` and `jsconfig.json`). Theme tokens live in `src/index.css`; dark mode is a `.dark` class on `<html>` toggled by `ThemeProvider` (`main.jsx` wraps `<App />`) and persisted to `localStorage` under `real-estate-theme`.
+**Styling:** Tailwind CSS v4 (via `@tailwindcss/vite`, no `tailwind.config.js`) + shadcn/ui (`new-york` style, components in `src/components/ui/`). Import alias `@/*` → `src/*` (configured in `vite.config.js` and `jsconfig.json`). Theme tokens live in `src/index.css` — a warm off-white/near-black monochrome palette (`oklch` values with a slight warm tint, not pure gray) with `--radius: 0.9rem` for a rounder, softer look. Dark mode is a `.dark` class on `<html>` toggled by `ThemeProvider` (`main.jsx` wraps `<App />`) and persisted to `localStorage` under `real-estate-theme`. **Exception:** `PropertyCard.jsx` was hand-restyled with raw `article`/`div`/`button` elements and inline Tailwind classes instead of the `ui/` `Card`/`Badge`/`Button` primitives — it's the one component that intentionally diverges from the shadcn-primitives pattern used everywhere else.
 
 ## Authentication
 
@@ -104,7 +105,7 @@ Base URL: `http://localhost:5000`
 
 Response shape for GET `/api/properties`:
 ```json
-{ "success": true, "properties": [...], "totalProperties": 300, "totalPages": 15, "currentPage": 1 }
+{ "success": true, "properties": [...], "totalProperties": 1000, "totalPages": 48, "currentPage": 1 }
 ```
 
 ## Property schema
@@ -145,8 +146,8 @@ JWT_SECRET=<long random string>
 
 ## Pagination behaviour
 
-- `fetchPropertiesWithPagination` caps results at 300 total (`maxProperties = 300`).
-- `adjustedLimit = Math.min(limit, 300 - skip)` prevents over-fetching near the cap.
+- `fetchPropertiesWithPagination` caps results at 1000 total (`maxProperties = 1000`).
+- `adjustedLimit = Math.min(limit, 1000 - skip)` prevents over-fetching near the cap.
 - `price` filter uses MongoDB aggregation (`$addFields` + `$toDouble`) because the field type is `Number` but `maxPrice` comparison requires explicit casting.
 
 ## Key constraints
@@ -154,3 +155,4 @@ JWT_SECRET=<long random string>
 - Both servers must run simultaneously — the frontend has no mock/offline mode.
 - All backend files use ESM (`"type": "module"` in both `package.json`s) — use `import`/`export`, not `require`.
 - The app is fully Hebrew/RTL: `index.html` sets `lang="he" dir="rtl"`, all UI copy is Hebrew, and the AI chat assistant is instructed (via `SYSTEM_PROMPT` in `chatController.js`) to always reply in Hebrew regardless of the input language. Keep new user-facing strings in Hebrew; code identifiers/comments stay in English.
+- If `frontend/` files were bulk-replaced/re-imported from elsewhere (e.g. dragging in a new export), check whether `frontend/node_modules/` survived the operation before assuming `npm run dev` is broken code — a missing `node_modules` (silently excluded from most file exports/uploads) looks like a mysterious dev-server failure but is fixed by a plain `npm install`.

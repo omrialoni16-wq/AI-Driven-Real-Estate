@@ -19,7 +19,7 @@ export const fetchPropertiesWithPagination = async (
 
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.max(1, Number(limit) || 21);
-    const maxProperties = 300;
+    const maxProperties = 1000;
     const skip = (pageNum - 1) * limitNum;
     const adjustedLimit = Math.min(limitNum, maxProperties - skip);
 

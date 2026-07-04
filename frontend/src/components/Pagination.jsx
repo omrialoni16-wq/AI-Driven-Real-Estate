@@ -72,12 +72,13 @@ const Pagination = ({
   if (totalPages <= 1) return null;
 
   return (
-    <nav className="mt-10 flex flex-wrap items-center justify-center gap-1.5">
+    <nav className="mt-12 flex flex-wrap items-center justify-center gap-2">
       <Button
         variant="outline"
         size="sm"
         onClick={handlePrevious}
         disabled={currentPage === 1}
+        className="h-10 rounded-xl px-4"
       >
         <ChevronRight />
         הקודם
@@ -96,7 +97,7 @@ const Pagination = ({
             key={number}
             variant={currentPage === number ? "default" : "outline"}
             size="icon"
-            className="size-9"
+            className="size-10 rounded-xl font-bold tabular-nums"
             onClick={() => paginate(number)}
           >
             {number}
@@ -109,6 +110,7 @@ const Pagination = ({
         size="sm"
         onClick={handleNext}
         disabled={currentPage === totalPages}
+        className="h-10 rounded-xl px-4"
       >
         הבא
         <ChevronLeft />

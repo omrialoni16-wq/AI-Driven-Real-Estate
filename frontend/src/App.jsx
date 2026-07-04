@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Plus, Home, Loader2, LogOut, ChevronDown, UserPlus } from "lucide-react";
+import { Plus, Home, LogOut, ChevronDown, UserPlus, Search } from "lucide-react";
 
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import PropertyCard from "./components/PropertyCard";
+import PropertyCardSkeleton from "./components/PropertyCardSkeleton";
 import AddPropertyForm from "./components/AddPropertyForm";
 import FilterBar from "./components/FilterBar";
 import Pagination from "./components/Pagination";
@@ -135,18 +136,18 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-        <header className="mb-8 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <Home className="size-6" />
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+        <header className="mb-10 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+              <Home className="size-[22px]" strokeWidth={1.7} />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            <div className="leading-tight">
+              <h1 className="text-xl font-extrabold tracking-tight sm:text-[22px]">
                 לוח נכסים
               </h1>
-              <p className="text-sm text-muted-foreground">
-                {totalProperties.toLocaleString()} נכסים זמינים
+              <p className="mt-0.5 text-[12.5px] font-medium text-muted-foreground">
+                נדל״ן נבחר · עדכני להיום
               </p>
             </div>
           </div>
@@ -154,7 +155,7 @@ function App() {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
+                  <Button variant="outline" className="h-10 rounded-xl">
                     {user.name}
                     <ChevronDown />
                   </Button>
@@ -172,7 +173,11 @@ function App() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="outline" onClick={() => setIsLoginOpen(true)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsLoginOpen(true)}
+                className="h-10 rounded-xl"
+              >
                 התחברות
               </Button>
             )}
@@ -180,12 +185,32 @@ function App() {
           </div>
         </header>
 
+        <section className="mb-8 flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <div className="mb-2.5 text-[12.5px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              נכסים למכירה
+            </div>
+            <h2 className="text-4xl font-extrabold leading-none tracking-tight">
+              מצאו את הבית הבא שלכם
+            </h2>
+          </div>
+          <div className="text-start">
+            <div className="text-[34px] font-extrabold leading-none tracking-tight tabular-nums">
+              {totalProperties.toLocaleString()}
+            </div>
+            <div className="mt-1 text-[13px] font-semibold text-muted-foreground">
+              נכסים תואמים
+            </div>
+          </div>
+        </section>
+
         <FilterBar filters={filters} setFilters={setFilters} />
 
         {isLoading ? (
-          <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-muted-foreground">
-            <Loader2 className="size-8 animate-spin text-primary" />
-            <p className="text-lg font-medium">טוען נכסים…</p>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <PropertyCardSkeleton key={i} />
+            ))}
           </div>
         ) : properties && properties.length > 0 ? (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -200,9 +225,18 @@ function App() {
             ))}
           </div>
         ) : (
-          <div className="flex min-h-[300px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-muted-foreground">
-            <Home className="size-10 opacity-40" />
-            <p className="text-lg font-medium">לא נמצאו נכסים התואמים את הסינון.</p>
+          <div className="flex min-h-[340px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-secondary/40 p-10 text-center">
+            <div className="flex size-16 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+              <Search className="size-7" strokeWidth={1.6} />
+            </div>
+            <div>
+              <p className="text-lg font-bold tracking-tight">
+                לא נמצאו נכסים תואמים
+              </p>
+              <p className="mx-auto mt-1.5 max-w-sm text-sm font-medium text-muted-foreground">
+                נסו לשנות את הסינון או להרחיב את טווח החיפוש כדי לראות עוד תוצאות.
+              </p>
+            </div>
           </div>
         )}
 

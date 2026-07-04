@@ -2,12 +2,21 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
-const TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const TOKEN_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
 
-const cookieOptions = {
+// Valid bcrypt hash with no corresponding real password — used to equalize
+// login timing between "user not found" and "wrong password" so response
+// time can't be used to enumerate registered emails.
+const DUMMY_HASH = "$2b$10$CwTycUXWue0Thq9StjUM0uJ8x/Ax9U8f7q0j2u1yQ0m8b6nB6bU1O";
+
+const baseCookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: "lax",
+};
+
+const cookieOptions = {
+  ...baseCookieOptions,
   maxAge: TOKEN_MAX_AGE_MS,
 };
 
@@ -19,22 +28,19 @@ export const login = async (req, res) => {
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!user) {
-      return res.status(401).json({ message: "Invalid email or password." });
-    }
+    const passwordMatches = await bcrypt.compare(password, user ? user.passwordHash : DUMMY_HASH);
 
-    const passwordMatches = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordMatches) {
+    if (!user || !passwordMatches) {
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
     const token = jwt.sign(
       { userId: user._id, name: user.name, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" },
+      { expiresIn: "3h", algorithm: "HS256" },
     );
 
-    res.cookie( token, cookieOptions);
+    res.cookie("token", token, cookieOptions);
     res.status(200).json({ user: { name: user.name, email: user.email } });
   } catch (error) {
     console.error("Error in login controller", error);
@@ -49,6 +55,9 @@ export const register = async (req, res) => {
       return res
         .status(400)
         .json({ message: "Name, email, and password are required." });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters long." });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -68,7 +77,7 @@ export const register = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie("token", { httpOnly: true, secure: cookieOptions.secure, sameSite: "lax" });
+  res.clearCookie("token", baseCookieOptions);
   res.status(200).json({ message: "Logged out." });
 };
 

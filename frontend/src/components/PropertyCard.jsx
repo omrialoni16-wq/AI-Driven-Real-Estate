@@ -1,79 +1,88 @@
-import { BedDouble, Building, Maximize, Pencil, Trash2 } from "lucide-react";
-
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { BedDouble, Layers, Maximize, Home, Pencil, Trash2 } from "lucide-react";
 
 const PropertyCard = ({ property, isAdmin, onDelete, onEdit }) => {
   return (
-    <Card className="group h-full gap-0 overflow-hidden rounded-lg border-border p-0 pb-5 shadow-none transition-colors duration-200 hover:border-foreground/40">
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1.5 hover:border-foreground/25 hover:shadow-[0_22px_42px_-24px_rgba(0,0,0,0.45)]">
       <div className="relative h-52 w-full shrink-0 overflow-hidden bg-muted">
-        {property.img && (
+        {property.img ? (
           <img
             src={property.img}
             alt={`${property.street}, ${property.city}`}
             loading="lazy"
-            className="size-full object-cover"
+            className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
           />
+        ) : (
+          <div className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground/50">
+            <Home className="size-8" strokeWidth={1.3} />
+            <span className="font-mono text-[10.5px] tracking-wide">
+              property photo
+            </span>
+          </div>
         )}
         {property.type && (
-          <Badge
-            variant="secondary"
-            className="absolute left-3 top-3 rounded-sm uppercase tracking-wide"
-          >
+          <span className="absolute right-3.5 top-3.5 rounded-full bg-primary px-3 py-1 text-[11.5px] font-bold tracking-wide text-primary-foreground">
             {property.type}
-          </Badge>
+          </span>
         )}
       </div>
 
-      <CardContent className="mt-5 flex flex-col gap-3">
-        <div>
-          <h2 className="truncate text-lg font-semibold leading-tight">
+      <div className="flex flex-1 flex-col p-5">
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold leading-snug tracking-tight">
             {property.street}
           </h2>
-          <p className="text-sm text-muted-foreground">{property.city}</p>
+          <p className="mt-0.5 text-sm font-medium text-muted-foreground">
+            {property.city}
+          </p>
         </div>
 
-        <p className="text-2xl font-bold text-primary">
+        <p className="mt-3.5 text-[27px] font-extrabold leading-none tracking-tight tabular-nums">
           ₪{property.price.toLocaleString()}
         </p>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t pt-3 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <BedDouble className="size-4" />
-            {property.rooms} חדרים
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Building className="size-4" />
-            קומה {property.floor}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Maximize className="size-4" />
-            {property.size} מ״ר
-          </span>
+        <div className="mt-auto flex items-stretch pt-4 text-muted-foreground">
+          <div className="flex flex-1 flex-col items-center gap-1.5">
+            <BedDouble className="size-[18px]" strokeWidth={1.7} />
+            <span className="text-[13px] font-semibold tabular-nums">
+              {property.rooms} חד׳
+            </span>
+          </div>
+          <div className="w-px self-stretch bg-border" />
+          <div className="flex flex-1 flex-col items-center gap-1.5">
+            <Layers className="size-[18px]" strokeWidth={1.7} />
+            <span className="text-[13px] font-semibold tabular-nums">
+              קומה {property.floor}
+            </span>
+          </div>
+          <div className="w-px self-stretch bg-border" />
+          <div className="flex flex-1 flex-col items-center gap-1.5">
+            <Maximize className="size-[18px]" strokeWidth={1.7} />
+            <span className="text-[13px] font-semibold tabular-nums">
+              {property.size} מ״ר
+            </span>
+          </div>
         </div>
-      </CardContent>
 
-      {isAdmin && (
-        <CardFooter className="mt-4 gap-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => onEdit(property)}
-          >
-            <Pencil />
-            עריכה
-          </Button>
-          <Button
-            className="flex-1"
-            onClick={() => onDelete(property._id)}
-          >
-            <Trash2 />
-            מחיקה
-          </Button>
-        </CardFooter>
-      )}
-    </Card>
+        {isAdmin && (
+          <div className="mt-4 flex gap-2 border-t border-border pt-4">
+            <button
+              onClick={() => onEdit(property)}
+              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-[13.5px] font-semibold transition-colors hover:border-foreground/40"
+            >
+              <Pencil className="size-[15px]" />
+              עריכה
+            </button>
+            <button
+              onClick={() => onDelete(property._id)}
+              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary text-[13.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              <Trash2 className="size-[15px]" />
+              מחיקה
+            </button>
+          </div>
+        )}
+      </div>
+    </article>
   );
 };
 
