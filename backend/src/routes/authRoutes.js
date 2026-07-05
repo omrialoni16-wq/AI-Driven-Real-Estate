@@ -13,9 +13,9 @@ const authLimiter = rateLimit({
   message: { message: "Too many attempts. Please try again later." },
 });
 
-router.post("/api/auth/login", authLimiter, login);
-router.post("/api/auth/logout", logout);
-router.get("/api/auth/me", requireAuth, me);
-router.post("/api/auth/register", requireAuth, authLimiter, register);
+router.post("/auth/login", authLimiter, login);
+router.post("/auth/logout", logout);
+router.get("/auth/me", requireAuth, me);
+router.post("/auth/register", requireAuth, authLimiter, register);
 
 export default router;

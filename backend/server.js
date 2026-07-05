@@ -41,8 +41,8 @@ app.use(cookieParser());
 
 connectDB();
 
-app.use(authRoutes);
-app.use(propertyRoutes);
+app.use('/api',authRoutes);
+app.use('/api',propertyRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

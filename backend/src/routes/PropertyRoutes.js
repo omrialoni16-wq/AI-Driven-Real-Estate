@@ -13,12 +13,12 @@ import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
-router.get("/api/properties", getAllProperties);
-router.post("/api/properties", requireAuth, addProperty);
-router.delete("/api/properties/:id", requireAuth, removeProperty);
-router.put("/api/properties/:id", requireAuth, updateProperty);
-router.post("/api/chat", requireAuth, handleChat);
-router.get("/api/search", getPropertiesByFilter);
-router.get("/api/properties/:id/location", getPropertyLocation);
+router.get("/properties", getAllProperties);
+router.post("/properties", requireAuth, addProperty);
+router.delete("/properties/:id", requireAuth, removeProperty);
+router.put("/properties/:id", requireAuth, updateProperty);
+router.post("/chat", requireAuth, handleChat);
+router.get("/search", getPropertiesByFilter);
+router.get("/properties/:id/location", getPropertyLocation);
 
 export default router;
