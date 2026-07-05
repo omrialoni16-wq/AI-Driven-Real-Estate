@@ -1,4 +1,5 @@
 import Property from "../models/Property.js";
+import { geocodeAddress } from "./GeocodeService.js";
 
 export const fetchPropertiesWithPagination = async (
   filters = {},
@@ -19,12 +20,12 @@ export const fetchPropertiesWithPagination = async (
 
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.max(1, Number(limit) || 21);
-    const maxProperties = 1000;
+    const maxProperties = 5000;
     const skip = (pageNum - 1) * limitNum;
-    const adjustedLimit = Math.min(limitNum, maxProperties - skip);
-
     const priceFilter =
       maxPrice !== undefined && maxPrice !== "" ? Number(maxPrice) : null;
+
+    
 
     const priceStages = priceFilter
       ? [
@@ -32,7 +33,7 @@ export const fetchPropertiesWithPagination = async (
           { $match: { priceAsNumber: { $lte: priceFilter } } },
         ]
       : [];
-
+    
     const [countResult, properties] = await Promise.all([
       Property.aggregate([
         { $match: query },
@@ -44,7 +45,7 @@ export const fetchPropertiesWithPagination = async (
         ...priceStages,
         { $sort: { createdAt: -1 } },
         { $skip: skip },
-        { $limit: adjustedLimit },
+        { $limit: limitNum },
         { $unset: "embedding" },
       ]),
     ]);
@@ -96,6 +97,24 @@ export const editProperty = async (id, updatedData) => {
     console.error("Failed updating Property!:", error);
     throw error;
   }
+};
+
+export const getPropertyLocation = async (id) => {
+  const property = await Property.findById(id);
+  if (!property) return { status: "not_found" };
+
+  if (property.lat != null && property.lng != null) {
+    return { status: "ok", lat: property.lat, lng: property.lng };
+  }
+
+  const coords = await geocodeAddress(property.street, property.city);
+  if (!coords) return { status: "geocode_failed" };
+
+  property.lat = coords.lat;
+  property.lng = coords.lng;
+  await property.save();
+
+  return { status: "ok", lat: coords.lat, lng: coords.lng };
 };
 
 export const filterPropertiesService = async (filters = {}) => {

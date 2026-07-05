@@ -4,6 +4,7 @@ import {
   editProperty,
   filterPropertiesService,
   fetchPropertiesWithPagination,
+  getPropertyLocation as getPropertyLocationService,
 } from "../service/PropertyService.js";
 
 export const getAllProperties = async (req, res) => {
@@ -80,6 +81,35 @@ export const removeProperty = async (req, res) => {
   } catch (error) {
     console.error("Error deleting property:", error);
     res.status(500).json({ message: "Error occurred", error: error.message });
+  }
+};
+
+export const getPropertyLocation = async (req, res) => {
+  try {
+    const result = await getPropertyLocationService(req.params.id);
+
+    if (result.status === "not_found") {
+      return res.status(404).json({ success: false, message: "Property not found" });
+    }
+    if (result.status === "geocode_failed") {
+      return res.status(404).json({
+        success: false,
+        message: "Could not geocode property location",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      lat: result.lat,
+      lng: result.lng,
+    });
+  } catch (error) {
+    console.error("Error in getPropertyLocation controller", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error: Could not retrieve property location",
+      error: error.message,
+    });
   }
 };
 

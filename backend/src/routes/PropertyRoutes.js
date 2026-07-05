@@ -4,7 +4,8 @@ import {
   getAllProperties,
   removeProperty,
   updateProperty,
-  getPropertiesByFilter
+  getPropertiesByFilter,
+  getPropertyLocation
 } from "../controllers/propertyController.js";
 
 import { handleChat } from "../controllers/chatController.js";
@@ -18,5 +19,6 @@ router.delete("/api/properties/:id", requireAuth, removeProperty);
 router.put("/api/properties/:id", requireAuth, updateProperty);
 router.post("/api/chat", requireAuth, handleChat);
 router.get("/api/search", getPropertiesByFilter);
+router.get("/api/properties/:id/location", getPropertyLocation);
 
 export default router;

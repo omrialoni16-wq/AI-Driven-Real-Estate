@@ -87,11 +87,7 @@ function App() {
 
   useEffect(() => {
     setCurrentPage(1);
-    const delayDebounceFn = setTimeout(() => {
-      fetchProperties(1, filters);
-    }, 500);
-
-    return () => clearTimeout(delayDebounceFn);
+    fetchProperties(1, filters);
   }, [filters]);
 
   const handleDelete = async (propertyId) => {
@@ -156,7 +152,7 @@ function App() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="h-10 rounded-xl">
-                    {user.name}
+                    {`שלום, ${user.name}`}
                     <ChevronDown />
                   </Button>
                 </DropdownMenuTrigger>

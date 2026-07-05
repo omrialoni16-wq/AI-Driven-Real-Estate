@@ -1,6 +1,10 @@
-import { BedDouble, Layers, Maximize, Home, Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { BedDouble, Layers, Maximize, Home, Pencil, Trash2, MapPin } from "lucide-react";
+import PropertyMapDialog from "./PropertyMapDialog";
 
 const PropertyCard = ({ property, isAdmin, onDelete, onEdit }) => {
+  const [isMapOpen, setIsMapOpen] = useState(false);
+
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1.5 hover:border-foreground/25 hover:shadow-[0_22px_42px_-24px_rgba(0,0,0,0.45)]">
       <div className="relative h-52 w-full shrink-0 overflow-hidden bg-muted">
@@ -27,13 +31,23 @@ const PropertyCard = ({ property, isAdmin, onDelete, onEdit }) => {
       </div>
 
       <div className="flex flex-1 flex-col p-5">
-        <div className="min-w-0">
-          <h2 className="text-lg font-bold leading-snug tracking-tight">
-            {property.street}
-          </h2>
-          <p className="mt-0.5 text-sm font-medium text-muted-foreground">
-            {property.city}
-          </p>
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold leading-snug tracking-tight">
+              {property.street}
+            </h2>
+            <p className="mt-0.5 text-sm font-medium text-muted-foreground">
+              {property.city}
+            </p>
+          </div>
+          <button
+            onClick={() => setIsMapOpen(true)}
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+            aria-label="הצג מיקום על המפה"
+            title="הצג מיקום על המפה"
+          >
+            <MapPin className="size-4" strokeWidth={1.8} />
+          </button>
         </div>
 
         <p className="mt-3.5 text-[27px] font-extrabold leading-none tracking-tight tabular-nums">
@@ -82,6 +96,12 @@ const PropertyCard = ({ property, isAdmin, onDelete, onEdit }) => {
           </div>
         )}
       </div>
+
+      <PropertyMapDialog
+        property={property}
+        open={isMapOpen}
+        onOpenChange={setIsMapOpen}
+      />
     </article>
   );
 };

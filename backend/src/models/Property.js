@@ -13,6 +13,8 @@ const propertySchema = new mongoose.Schema(
     size: { type: Number, required: true, min: 0 },
     tags: { type: [String], default: [] },
     description: { type: String },
+    lat: { type: Number },
+    lng: { type: Number },
   },
   { timestamps: true },
 );
