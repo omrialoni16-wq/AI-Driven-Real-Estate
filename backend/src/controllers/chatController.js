@@ -19,7 +19,7 @@ const PROPERTY_TYPES = [
   "סטודיו/ לופט",
 ];
 const MAX_TOOL_ITERATIONS = 8;
-const AGENT_MODEL = "llama-3.3-70b-versatile";
+const AGENT_MODEL = "openai/gpt-oss-20b";
 
 const CITY_MAP = {
   "tel aviv": "תל אביב",

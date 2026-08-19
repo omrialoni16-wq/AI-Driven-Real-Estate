@@ -122,7 +122,7 @@ Response shape for GET `/api/properties`:
 
 `chatController.js` uses the OpenAI SDK pointed at Groq (`baseURL: "https://api.groq.com/openai/v1"`).
 
-Unified agentic loop (`llama-3.3-70b-versatile`, up to 8 iterations) with three tools:
+Unified agentic loop (`openai/gpt-oss-20b`, up to 8 iterations) with three tools:
 
 - `addProperty` — collects required fields (city, street, price, rooms, size, floor, type), then calls `agentAddProperty` in `AgentService.js` which saves to DB with a default `img` and generated Hebrew `description`.
 - `searchPrices` — calls `agentSearchPrices` to return avg/min/max price statistics, optionally filtered by city, type, and rooms.
