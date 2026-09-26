@@ -77,8 +77,9 @@ For each file: what it does, why it exists, and what would go wrong without it.
 | **`tests/test_validation.py`** | 16 cases: invalid fields, oversized/malformed bodies, CORS, bad ids, chat body | — |
 | **`tests/test_search_and_filtering.py`** | 11 cases: filters, search, tags, pagination, regex/number-parsing bugs | — |
 | **`tests/test_external_services.py`** | 2 `external` cases: chat and geocoding, contract only | — |
-| **`FINDINGS.md`** | The 14 weaknesses found, grouped, with severity and reproduction steps | Bugs found by the suite live only in test names |
+| **`FINDINGS.md`** | The 15 weaknesses found, grouped, with severity and reproduction steps | Bugs found by the suite live only in test names |
 | **`.env.example`** | Every variable, with placeholders and comments | A new machine has to guess the configuration |
+| **`../.github/workflows/api-tests.yml`** | Runs the suite on every push and pull request against a throwaway MongoDB, and uploads the reports (section 7.5) | The suite only runs when someone remembers to run it |
 
 One app change was made for testability (`AUTH_RATE_LIMIT_MAX`, section 7.2) and one bug fix (the `PropertyController.js` import case, which would have crashed the server on Linux/CI).
 
@@ -543,6 +544,42 @@ When one fires: add the new route to `PROTECTED_CALLS`, and if it doesn't use pl
 
 The guard checks the `.env` file, not the running server. If someone starts the server by hand with the real `backend/.env` on port 5001, the guard can't tell. Two things close most of that gap: the launcher script (which starts the server from the checked file), and the admin-login check (the test admin exists only in the test auth DB, so a server on the real auth DB fails the login check before any test runs). A server on the real *properties* DB but the test *auth* DB would still slip through; only the launcher prevents that combination.
 
+### 7.5 CI: why tests run on every push, and how this workflow is built
+
+**Why this is the whole point.** A test suite that runs only when someone remembers to run it protects only the code that person was thinking about. Regressions come from the change nobody thought was risky: a renamed import, a one-line config parse, a new route. Running the suite automatically on every push and pull request turns it from a tool into a *gate*. Every change is checked against everything the suite knows, by a machine that doesn't forget, get tired, or skip "just this once". It also answers the question that matters in code review before anyone asks it: did this change break anything we already knew how to check? The import-case bug (`propertyController.js` vs `PropertyController.js`) is the local proof: it worked on a Mac for months and would have failed on the first Linux CI run.
+
+**What the workflow does** (`.github/workflows/api-tests.yml`):
+
+1. Starts **MongoDB 8.0 as a service container**, a database that exists only for this job. GitHub waits for its health check before running any step.
+2. Installs Node 24 and Python 3.12 (with dependency caching), then the backend (`npm ci`) and the test requirements.
+3. **Generates a JWT secret and an admin password for this run**, and registers both with `::add-mask::`, so GitHub replaces them with `***` anywhere in the log.
+4. Runs `python config.py` (the same safety guard as locally), starts the test server in the background, and **waits until `/api/properties` answers**. That endpoint needs the database, so a 200 means server *and* DB are ready. It gives up after 30 seconds with a clear error.
+5. Seeds the admin, runs `pytest -m "not external"`, prints the server log **only if something failed**, and uploads `reports/` **always**, so a failing run keeps its evidence.
+
+**We chose a service container over the Atlas test databases** because opening an Atlas cluster to `0.0.0.0/0` (GitHub's runner IPs change every run) would expose a real cluster to the whole internet for the sake of a test run. The container is also *more* isolated than Atlas: a fresh, empty database every run, destroyed afterwards, so the leak check starts from zero and nothing can accumulate. The trade-off: CI runs against MongoDB 8.0 in a container, while local runs use Atlas, so a version-specific difference could in principle pass in one and fail in the other.
+
+**No repository secrets, by design.** Everything secret is generated inside the job and dies with it. Consequences:
+
+- **Pull requests from forks run the full suite.** GitHub withholds repository secrets from fork PRs, so a secret-dependent workflow can't test outside contributions. This one can.
+- **There's nothing to leak or rotate.** A per-run secret is worthless once the run ends.
+
+**Two layers keep secrets out of the log:**
+
+| What could leak | Who knows about it | Protection |
+|---|---|---|
+| The generated JWT secret and admin password | The workflow (it created them) | `::add-mask::`: GitHub masks the exact strings everywhere in the job log |
+| The session JWTs the server issues during the run | Nobody in advance: they're created mid-test | The framework's own redaction (`client/redaction.py`), since GitHub can't mask a value it was never told about |
+
+**How the "nothing prints a secret" claim was verified.** GitHub's masking can only be observed on a real run, so the check was done one level below it: a local runner read the workflow's own `run:` steps from the YAML and executed them in a sandbox containing only the files git will commit. The only substitution was pointing at the Atlas `_test` databases, since there's no Docker locally. The output was captured **unmasked**, so the test covered the framework on its own:
+
+- a passing run, and a deliberately failing run: an authenticated request failing its assertion, an error raised while a session token was in a local variable, and a server-side 500, which also triggers the "show server log" step;
+- the full step output, `server.log`, `report.html` and `junit.xml` were searched for the generated JWT secret, the generated admin password, and `eyJ` (any JWT): **0 occurrences everywhere, in both runs**;
+- control: the same search found each secret exactly once in the file where the workflow deliberately stores it, so the search does find a secret when one is present.
+
+The first real run on GitHub is still the final proof: open its log and check that each step's `env:` block shows `TEST_JWT_SECRET: ***` and `TEST_ADMIN_PASSWORD: ***`.
+
+**The placeholder Groq key.** The backend won't start without *some* `GROQ_API_KEY`, even though only `/api/chat` uses it (FINDINGS F15). CI sets `ci-placeholder-no-external-calls`: not a secret and not a real key, and never used, because the external tests are excluded.
+
 ---
 
 ## 8. Interview questions
@@ -575,7 +612,7 @@ Each answer is drawn from what this suite actually does.
 
 **7. "How do you make sure tests never touch production data?"**
 
-> The config refuses to load unless the API URL is localhost and both database names end in `_test`, and the check is inside `load_settings()`, so the fixtures, the seed script and the server launcher all get it without being able to skip it. The server is started by a launcher that passes those same checked values, because the check can only inspect a file, not a running server. And the test admin exists only in the test auth database, so a server accidentally started against the real one fails the login check before any test runs. I'm honest about the gap: a hand-started server on the real properties database and the test auth database would get past all of that, which is why the launcher matters.
+> The config refuses to load unless the API URL is localhost and both database names end in `_test`, and the check is inside `load_settings()`, so the fixtures, the seed script and the server launcher all get it without being able to skip it. The server is started by a launcher that passes those same checked values, because the check can only inspect a file, not a running server. And the test admin exists only in the test auth database, so a server accidentally started against the real one fails the login check before any test runs. I'm honest about the gap: a hand-started server on the real properties database and the test auth database would get past all of that, which is why the launcher matters. In CI the question doesn't arise: the job's only database is a container that exists for that run, and the workflow has no credentials for anything else.
 
 **8. "You changed the application's code to make it testable. Isn't that cheating?"**
 
@@ -595,7 +632,7 @@ Each answer is drawn from what this suite actually does.
 
 An honest list of what a production framework has that this one doesn't yet:
 
-- **CI.** Run the suite automatically on every push and pull request, against a throwaway database, and publish a status badge. Today it runs only when someone runs it.
+- **More from CI.** Branch protection that *requires* the API-tests check before merging (today it reports, but doesn't block). A scheduled nightly job for the `external` tests, which would need a Groq key as a secret, and so wouldn't run on fork PRs. A MongoDB version matrix matching the Atlas version, to close the container-vs-Atlas gap (section 7.5).
 - **Parallel execution** with `pytest-xdist`. It needs the leak check redesigned (per-run data tagging or a database per run), as in answer 6.
 - **Schema / contract testing.** Validate every response against a JSON Schema or pydantic model, or against an OpenAPI spec if the backend published one. Today, response shapes are checked field by field in each test.
 - **An ephemeral test database.** A MongoDB container per run instead of shared `_test` databases on Atlas: fully isolated, and no chance of pointing at real data.

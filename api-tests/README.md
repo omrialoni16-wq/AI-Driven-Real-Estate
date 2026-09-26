@@ -1,5 +1,7 @@
 # Real Estate API: Test Suite
 
+[![API tests](https://github.com/omrialoni16-wq/AI-Driven-Real-Estate/actions/workflows/api-tests.yml/badge.svg?branch=main)](https://github.com/omrialoni16-wq/AI-Driven-Real-Estate/actions/workflows/api-tests.yml)
+
 An automated test suite, in Python and pytest, for the backend of this repo's real estate app (a Node/Express/MongoDB API). It treats the app as a black box: it starts the server against separate test databases, sends real HTTP requests, and checks the responses.
 
 It covers login and session handling, admin-only authorization, creating/editing/deleting listings, input validation, search, filtering and pagination, plus contract checks for the two endpoints that call outside services.
@@ -139,6 +141,19 @@ The suite checks its environment before running any test, and stops with **one**
 | `Test data leak check failed` | A test created or deleted properties without cleaning up. The message lists them; leaked ones are removed automatically. |
 | An `XPASS(strict)` failure | A known bug has been fixed. Remove the `@known_bug` marker from that test and the entry from FINDINGS.md. |
 
+## Continuous integration
+
+[`.github/workflows/api-tests.yml`](../.github/workflows/api-tests.yml) runs the suite on every push and pull request:
+
+1. starts a throwaway MongoDB 8.0 as a service container (`Properties_test` and `RealEstateApp_test` inside it);
+2. installs the backend (`npm ci`) and the test dependencies;
+3. generates a JWT secret and an admin password for this run only, and masks both in the log;
+4. starts the test server, waits until `/api/properties` answers (server and database both up), and seeds the admin;
+5. runs `pytest -m "not external"` (no Groq, no Nominatim);
+6. uploads `reports/` as the `api-test-reports` artifact, **whether the run passed or failed**, and prints the server log if it failed.
+
+It needs **no repository secrets**: nothing in it touches the Atlas clusters, so it also works for pull requests from forks. To see a run's reports, open the run on the repo's Actions tab and download `api-test-reports` from the Artifacts section.
+
 ## Safety rails
 
 The suite creates and deletes data, so it refuses to run unless:
@@ -177,5 +192,5 @@ api-tests/
 
 ## Further reading
 
-- [FINDINGS.md](FINDINGS.md): the 14 weaknesses found, grouped and with reproduction steps.
+- [FINDINGS.md](FINDINGS.md): the 15 weaknesses found, grouped and with reproduction steps.
 - [LEARNING_NOTES.md](LEARNING_NOTES.md): the design, file by file, with the trade-offs behind each decision.

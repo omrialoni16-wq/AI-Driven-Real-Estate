@@ -1,13 +1,13 @@
 # Findings
 
-**14 findings: 6 crashes, 4 validation gaps, 4 design issues. 5 are medium severity, 9 are low. None allows access without logging in.**
+**15 findings: 6 crashes, 4 validation gaps, 5 design issues. 5 are medium severity, 10 are low. None allows access without logging in.**
 
 | Group | Count | Findings | Covered by a test |
 |---|---|---|---|
 | Crashes: bad input causes a 500 | 6 | F1–F6 | 6 of 6 |
 | Missing validation: bad input is accepted or ignored | 4 | F8–F11 | 3 of 4 (F10 needs a large dataset) |
-| Design issues | 4 | F7, F12–F14 | 2 of 4 (F12 is non-deterministic, F14 is manual) |
-| **Total** | **14** | | **11 findings, 15 test cases (all strict xfail)** |
+| Design issues | 5 | F7, F12–F15 | 2 of 5 (F12 is non-deterministic, F14 is manual, F15 is about startup) |
+| **Total** | **15** | | **11 findings, 15 test cases (all strict xfail)** |
 
 Weaknesses in the Real Estate API, found while building this test suite by reading the code and then confirming each one against a running server.
 
@@ -41,6 +41,7 @@ curl -s -c jar.txt -H 'Content-Type: application/json' \
 | [F12](#f12-the-chat-client-controls-the-whole-conversation-history) | The chat client controls the whole conversation history | **Medium** | code review |
 | [F13](#f13-logout-doesnt-revoke-the-session-token) | Logout doesn't revoke the session token | **Medium** | ✔ |
 | [F14](#f14-error-responses-expose-internal-error-messages) | Error responses expose internal error messages | Low | manual |
+| [F15](#f15-the-whole-server-refuses-to-start-without-a-groq-api-key) | The whole server refuses to start without a Groq API key | Low | CI setup |
 
 **Severity, in plain terms.** *Medium*: misuse can cause real harm (bad data shown to users, the server overloaded, access that outlives a logout). *Low*: the wrong status code, a confusing error, or information that helps an attacker a little. Nothing found allows access without logging in: every admin endpoint rejected every unauthenticated or forged request (`tests/test_authorization.py`).
 
@@ -199,3 +200,15 @@ A 500 is a finding even when nothing breaks. It tells the client "the server fai
 - **Where:** `error: error.message` in [PropertyController.js](../backend/src/controllers/PropertyController.js) (lines 31, 45, 65, 83, 111).
 - **Severity:** Low. It makes the next attack slightly easier; nothing is exposed directly.
 - **Test:** none of its own. The bodies are visible in the F1/F2 xfail output (`pytest --runxfail`). A strict "no internals" test would conflict with the useful part of the current messages (they name the invalid field), so it's left to the fix.
+
+### F15: The whole server refuses to start without a Groq API key
+
+- **Input:** starting the backend with `GROQ_API_KEY` unset or empty.
+- **What happens:** the server crashes at startup with `Missing credentials. Please pass an apiKey...`. The OpenAI SDK client is created when `chatController.js` is imported, and `PropertyRoutes.js` imports it, so **every** endpoint goes down, including login and the public listing, not just the AI chat.
+- **What should happen:** an optional external integration must not be able to take down authentication and public listings. The rest of the API runs without the key, and only `/api/chat` answers with an error (e.g. `503`, "AI assistant not configured").
+- **Fix direction (not implemented):** create the Groq client lazily, on the first chat request, instead of at import time. A missing key then becomes a chat-only error.
+- **Where:** [chatController.js:8-11](../backend/src/controllers/chatController.js#L8-L11), imported at [PropertyRoutes.js:11](../backend/src/routes/PropertyRoutes.js#L11).
+- **Severity:** Low. No data or access is at risk, but a missing or revoked key for one optional feature takes down login and the public site.
+- **Reproduce:** start the backend with `GROQ_API_KEY=` (empty) and watch it exit.
+- **Test:** none. It's about process startup, which a black-box HTTP suite can't observe. Found while building CI: the workflow passes a non-secret placeholder key (`ci-placeholder-no-external-calls`) because the fast run never calls Groq.
+
