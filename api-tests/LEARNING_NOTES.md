@@ -404,7 +404,7 @@ created_property = {'img': 'https://example.test/images/property.jpg', 'price': 
 E       AssertionError: Expected 400 from PUT http://localhost:5001/api/properties/6ab6570c233e578fbd5a80b0, got 500.
 E       Response body: {"message":"Error updating property","error":"Validation failed: rooms: Path `rooms` (-1) is less than minimum allowed value (0)."}
 
-tests/test_validation.py:91: AssertionError
+tests/test_validation.py:93: AssertionError
 ------------------------------ Captured log setup ------------------------------
 INFO     api:base_client.py:43 GET http://localhost:5001/api/auth/me -> 401 (1 ms)
 INFO     api:base_client.py:43 POST http://localhost:5001/api/auth/login -> 200 (124 ms)
@@ -444,7 +444,7 @@ How to read it:
 
 **Environment and safety**
 
-- **`_test` databases on the existing Atlas clusters, guarded by name, over a local MongoDB** because it needs nothing installed, and the guard (localhost + `_test` suffix, checked inside `load_settings()` so nothing can skip it) is the safety rail a real framework has.
+- **`_test` databases on the existing Atlas clusters, guarded by name, over a local MongoDB** for local runs, because it needs nothing installed, and the guard (localhost + `_test` suffix, checked inside `load_settings()` so nothing can skip it) is the safety rail a real framework has. CI uses a throwaway MongoDB container instead (section 7.5).
 - **A launcher script over "start the server however you like"** because the guard checks a file; starting the server from that same file is what makes the check mean something.
 - **`pytest.exit` for environment problems over per-test failures** because a stopped server is one problem, not 60.
 - **The test admin's login as an implicit check:** it exists only in the test auth DB, so a server started against the real database fails the login check.
@@ -635,7 +635,7 @@ An honest list of what a production framework has that this one doesn't yet:
 - **More from CI.** Branch protection that *requires* the API-tests check before merging (today it reports, but doesn't block). A scheduled nightly job for the `external` tests, which would need a Groq key as a secret, and so wouldn't run on fork PRs. A MongoDB version matrix matching the Atlas version, to close the container-vs-Atlas gap (section 7.5).
 - **Parallel execution** with `pytest-xdist`. It needs the leak check redesigned (per-run data tagging or a database per run), as in answer 6.
 - **Schema / contract testing.** Validate every response against a JSON Schema or pydantic model, or against an OpenAPI spec if the backend published one. Today, response shapes are checked field by field in each test.
-- **An ephemeral test database.** A MongoDB container per run instead of shared `_test` databases on Atlas: fully isolated, and no chance of pointing at real data.
+- **An ephemeral database for local runs too.** CI already gets a throwaway MongoDB container per run (section 7.5); local runs still use shared `_test` databases on Atlas. A local container would make them just as isolated, with no chance of pointing at real data.
 - **Stubs for external services.** A fake Groq and Nominatim for deterministic tests of the error paths (model timeout, geocoder down), which the suite can't trigger today.
 - **Performance checks.** Response-time budgets on key endpoints, and a small load test (k6 or Locust) that would *demonstrate* F10 (unbounded page size).
 - **A routes tripwire** for the authorization assumption (section 7.3).
