@@ -6,7 +6,7 @@ import {
   updateProperty,
   getPropertiesByFilter,
   getPropertyLocation
-} from "../controllers/propertyController.js";
+} from "../controllers/PropertyController.js";
 
 import { handleChat } from "../controllers/chatController.js";
 import { requireAuth } from "../middleware/requireAuth.js";

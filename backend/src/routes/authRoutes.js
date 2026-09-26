@@ -5,9 +5,14 @@ import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
+// Blank counts as unset: Number("") is 0, and a limit of 0 blocks every request.
+const rawLimit = process.env.AUTH_RATE_LIMIT_MAX?.trim();
+const parsedLimit = rawLimit ? Number(rawLimit) : NaN;
+const limit = Number.isInteger(parsedLimit) && parsedLimit >= 0 ? parsedLimit : 10;
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many attempts. Please try again later." },
