@@ -1,0 +1,11 @@
+# Direct dependencies only, pinned to exact versions so every machine (and CI)
+# runs the suite with the same libraries. Transitive dependencies are not pinned;
+# a lock file (pip-tools / uv) would pin those too, a possible next step.
+
+pytest==9.1.1          # test runner: discovery, fixtures, parametrize, markers
+pytest-html==4.2.0     # human-readable HTML report
+requests==2.34.2       # HTTP client; Session keeps the auth cookie between calls
+python-dotenv==1.2.3   # loads .env into environment variables
+pymongo==4.18.1        # seed script only: writes the test admin to the test auth DB
+bcrypt==5.0.0          # seed script only: hashes the test admin's password like the app does
+PyJWT==2.15.0          # auth tests: sign expired or forged tokens
