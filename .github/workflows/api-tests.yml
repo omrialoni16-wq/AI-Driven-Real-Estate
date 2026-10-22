@@ -49,29 +49,24 @@ jobs:
           # Don't leave the job's GitHub token in .git/config; nothing here pushes.
           persist-credentials: false
 
-      # A step, not a service container: a service container that fails to start
-      # kills the job before any step runs and hides the cause. Here the pull is
-      # retried and any failure shows up in this step's log. ECR Public mirrors
-      # Docker Hub's official images without Docker Hub's pull rate limits.
+      # MongoDB from MongoDB's own download server, run as a plain process.
+      # No Docker: pulling mongo:8.0 on the runners kept failing intermittently
+      # (from both Docker Hub and ECR Public), which killed the job before any
+      # test ran. --fork returns only once mongod accepts connections.
       - name: Start MongoDB
+        env:
+          MONGODB_URL: https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2404-8.0.34.tgz
+          MONGODB_SHA256: 3e55cdcf7013fbc805d29d8195230df4b23c7688733ee15ad58ac6bc2a416611
         run: |
-          image=public.ecr.aws/docker/library/mongo:8.0
-          for attempt in 1 2 3; do
-            docker pull --quiet "$image" && break
-            echo "::warning::docker pull failed (attempt ${attempt}/3)"
-            sleep 10
-          done
-          docker run --detach --name mongodb --publish 27017:27017 "$image"
-          for attempt in $(seq 1 30); do
-            if docker exec mongodb mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' > /dev/null 2>&1; then
-              echo "MongoDB is up after ${attempt} attempt(s)"
-              exit 0
-            fi
-            sleep 2
-          done
-          docker logs mongodb
-          echo "::error::MongoDB did not become ready within 60 seconds"
-          exit 1
+          archive="$RUNNER_TEMP/mongodb.tgz"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --output "$archive" "$MONGODB_URL"
+          echo "${MONGODB_SHA256}  ${archive}" | sha256sum --check --quiet
+          mkdir -p "$RUNNER_TEMP/mongodb" "$RUNNER_TEMP/mongodb-data"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/mongodb" --strip-components=1
+          "$RUNNER_TEMP/mongodb/bin/mongod" --dbpath "$RUNNER_TEMP/mongodb-data" \
+            --bind_ip 127.0.0.1,::1 --ipv6 --port 27017 \
+            --fork --logpath "$RUNNER_TEMP/mongod.log" \
+            || { cat "$RUNNER_TEMP/mongod.log"; echo "::error::mongod failed to start"; exit 1; }
 
       - uses: actions/setup-node@v7
         with:
