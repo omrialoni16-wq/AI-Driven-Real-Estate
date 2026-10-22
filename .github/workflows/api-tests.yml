@@ -1,7 +1,7 @@
 # Runs the API test suite (api-tests/) against a throwaway MongoDB on every push and PR.
 #
-# Needs no repository secrets: the database is a service container that exists
-# only for this job, and the JWT secret and admin password are generated per
+# Needs no repository secrets: the database is a container that exists only
+# for this job, and the JWT secret and admin password are generated per
 # run. That also means pull requests from forks run the full suite.
 #
 # Third-party services are excluded (-m "not external"): no Groq key, no
@@ -24,22 +24,9 @@ concurrency:
 
 jobs:
   api-tests:
-    # Pinned: ubuntu-latest moved to Ubuntu 26 on 2026-10-19, and the mongo:8.0
-    # service container stopped starting there. Revisit once that's resolved.
+    # Pinned so a runner image upgrade can't change the environment under the suite.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-
-    services:
-      mongodb:
-        image: mongo:8.0
-        ports:
-          - 27017:27017
-        # The job waits until this health check passes before running any step.
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
 
     env:
       API_BASE_URL: http://localhost:5001
@@ -61,6 +48,30 @@ jobs:
         with:
           # Don't leave the job's GitHub token in .git/config; nothing here pushes.
           persist-credentials: false
+
+      # A step, not a service container: a service container that fails to start
+      # kills the job before any step runs and hides the cause. Here the pull is
+      # retried and any failure shows up in this step's log. ECR Public mirrors
+      # Docker Hub's official images without Docker Hub's pull rate limits.
+      - name: Start MongoDB
+        run: |
+          image=public.ecr.aws/docker/library/mongo:8.0
+          for attempt in 1 2 3; do
+            docker pull --quiet "$image" && break
+            echo "::warning::docker pull failed (attempt ${attempt}/3)"
+            sleep 10
+          done
+          docker run --detach --name mongodb --publish 27017:27017 "$image"
+          for attempt in $(seq 1 30); do
+            if docker exec mongodb mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' > /dev/null 2>&1; then
+              echo "MongoDB is up after ${attempt} attempt(s)"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs mongodb
+          echo "::error::MongoDB did not become ready within 60 seconds"
+          exit 1
 
       - uses: actions/setup-node@v7
         with:
@@ -121,7 +132,8 @@ jobs:
 
       - name: Show server log
         if: failure()
-        run: cat server.log
+        run: |
+          if [ -f server.log ]; then cat server.log; else echo "No server log: the server never started."; fi
 
       - name: Upload test reports
         if: always()
