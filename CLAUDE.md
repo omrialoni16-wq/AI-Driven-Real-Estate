@@ -26,18 +26,22 @@ backend/
     models/
       Property.js             # Mongoose schema (apartments collection), bound to default connection
       User.js                 # Admin schema (name, email, passwordHash), bound to authConnection
+      Inquiry.js              # Guest inquiry on a property (name?, phone/email — at least one, message, status), default connection
     routes/
       PropertyRoutes.js       # All property + chat route definitions
       authRoutes.js           # /api/auth/login, /api/auth/logout, /api/auth/me
+      InquiryRoutes.js        # Guest inquiry create (public, rate-limited) + admin list/status update
     middleware/
       requireAuth.js          # Verifies JWT cookie, attaches req.user, 401 on failure
     controllers/
       PropertyController.js   # HTTP layer — validates, calls service
       chatController.js       # AI chat pipeline (Groq tool-use)
       authController.js       # login/logout/me handlers — bcrypt compare, JWT sign, cookie set/clear
+      InquiryController.js    # Inquiry HTTP layer — honeypot check, 400/404 mapping, status validation
     service/
       PropertyService.js      # DB logic — queries, pagination, filtering (REST API)
       AgentService.js         # DB logic for agent tools — addProperty, searchPrices, searchProperties
+      InquiryService.js       # DB logic for inquiries — create (field whitelist), paginated list with populated property, status update
   scripts/
     seedAdmins.js              # One-off script to upsert admin accounts into the auth cluster (not run by the server)
 frontend/
@@ -57,6 +61,8 @@ frontend/
       EditPropertyForm.jsx     # Modal form for editing
       LoginForm.jsx             # Email/password form used inside the login Dialog
       AddAdminForm.jsx          # Name/email/password form, POST /api/auth/register (admin-only)
+      InquiryForm.jsx           # Guest "צור קשר" form → POST /api/properties/:id/inquiries (includes hidden honeypot field)
+      InquiriesPanel.jsx        # Admin inquiries list (status filter, per-inquiry status select, pagination) — presentational
       Pagination.jsx           # Prev / Next controls
       AIChat.jsx               # Chat widget → POST /api/chat (admin-only)
       theme-provider.jsx       # Light/dark context, persists to localStorage
@@ -80,7 +86,7 @@ Admin-only JWT auth, guest browsing stays public. Guests can view/filter/paginat
 - **Token:** `POST /api/auth/login` (`authController.js`) checks `bcryptjs.compare()` against `User.passwordHash`, signs a JWT (`jsonwebtoken`, `{ userId, name, email }`, 7d expiry) with `JWT_SECRET`, and sets it as an **httpOnly cookie** (`sameSite: "lax"`) — never returned in the JSON body, so frontend JS can't read or leak it.
 - **Session check:** frontend can't read an httpOnly cookie, so `AuthContext.jsx` calls `GET /api/auth/me` on mount to determine login state; `requireAuth.js` middleware verifies the cookie on every protected route and attaches `req.user`.
 - **CORS:** since the cookie must cross the `5173` → `5000` origin boundary, `server.js` uses a dynamic origin-validation function (allowing both `http://localhost:5173` and `http://127.0.0.1:5173` — a static origin string would only ever match one of them and silently break the other) with `credentials: true`; the frontend's shared `lib/api.js` axios instance sets `withCredentials: true` on every request. Both sides are required or the cookie won't be sent/accepted.
-- **Protected routes:** `requireAuth` wraps `POST/PUT/DELETE /api/properties`, all of `/api/chat` (the AI Assistant is admin-only, not just its `addProperty` tool), and `POST /api/auth/register`. `GET /api/properties` and `GET /api/search` stay open.
+- **Protected routes:** `requireAuth` wraps `POST/PUT/DELETE /api/properties`, all of `/api/chat` (the AI Assistant is admin-only, not just its `addProperty` tool), `POST /api/auth/register`, and `GET/PATCH /api/inquiries`. `GET /api/properties`, `GET /api/search` and `POST /api/properties/:id/inquiries` stay open.
 - **Admin accounts:** no *public* registration, but any logged-in admin can create another via the "הוספת מנהל" (Add Admin) item in the user-name dropdown in the header (`AddAdminForm.jsx` → `POST /api/auth/register`, `requireAuth`-gated). `backend/scripts/seedAdmins.js` still exists as a manual bootstrap tool for creating the very first admin on a fresh DB (chicken-and-egg: the in-app flow needs an existing admin to be logged in) — fill in its `ADMINS` array and run `node scripts/seedAdmins.js`, then clear the array back out since the file isn't gitignored.
 - **Frontend gating:** `App.jsx` reads `user` from `useAuth()` to show a "התחברות" (login) button vs. a dropdown with the admin's name (Add Admin / logout) in the header, and conditionally renders the add-property FAB, `AIChat`, and each `PropertyCard`'s edit/delete footer (`isAdmin` prop) only when logged in.
 
@@ -102,6 +108,9 @@ Base URL: `http://localhost:5000`
 | POST | `/api/auth/logout` | — clears the cookie |
 | GET | `/api/auth/me` | — (requireAuth) returns `{ user }` for the current session |
 | POST | `/api/auth/register` | (requireAuth) `{ name, email, password }` — creates another admin |
+| POST | `/api/properties/:id/inquiries` | `{ name?, phone?, email?, message }` — public, phone or email required, 5 per 15 min per IP (`INQUIRY_RATE_LIMIT_MAX`) |
+| GET | `/api/inquiries` | (requireAuth) `status` (`new`/`in_progress`/`closed`), `page`, `limit` (default 20) |
+| PATCH | `/api/inquiries/:id` | (requireAuth) `{ status }` |
 
 Response shape for GET `/api/properties`:
 ```json
@@ -117,6 +126,16 @@ Response shape for GET `/api/properties`:
 ```
 
 `type` accepted values in the AI chat tool (Hebrew, matching real DB values): `"דירה"`, `"בית פרטי/ קוטג'"`, `"גג/ פנטהאוז"`, `"דירת גן"`, `"דופלקס"`, `"סטודיו/ לופט"`. The same list is shared by the frontend (`frontend/src/lib/propertyTypes.js`) and used in `FilterBar`, `AddPropertyForm`, and `EditPropertyForm`.
+
+## Inquiries
+
+Guests leave an inquiry from a property card ("צור קשר"); admins see all of them under "פניות" in the header dropdown.
+
+- **Contact rule:** guests have no account, so `Inquiry.js` has a `pre("validate")` hook requiring `phone` or `email` (name is optional).
+- **Field whitelist:** `createInquiry` copies only `name, phone, email, message` from the body, so a guest can't set `status`.
+- **Spam:** `inquiryLimiter` (express-rate-limit) on the create route, plus a honeypot — `InquiryForm` renders a visually hidden `website` input; if it's filled, the controller answers 201 without saving.
+- **Retention:** closing an inquiry sets `closedAt`; a TTL index on it deletes the document `CLOSED_INQUIRY_RETENTION_DAYS` (180) days later. Reopening `$unset`s `closedAt`, and open inquiries never expire. `InquiryForm` shows guests a privacy notice with the same number — keep its local constant in sync with the model. Changing the number on an existing DB needs a `collMod` (Mongoose won't update an existing TTL index).
+- **Property deletion** cascades: `deleteProperty` in `PropertyService.js` also deletes that property's inquiries.
 
 ## AI chat pipeline
 

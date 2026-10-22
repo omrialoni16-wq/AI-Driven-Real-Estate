@@ -34,6 +34,8 @@ BACKEND_DIR = API_TESTS_DIR.parent / "backend"
 # High enough that no realistic number of runs hits the login/register limiter,
 # which otherwise allows 10 requests per 15 minutes per IP.
 TEST_AUTH_RATE_LIMIT_MAX = "1000"
+# Same for guest inquiries, which allow 5 per 15 minutes per IP.
+TEST_INQUIRY_RATE_LIMIT_MAX = "1000"
 
 
 def main() -> int:
@@ -54,6 +56,7 @@ def main() -> int:
         # requests won't send a secure cookie back over plain http.
         "NODE_ENV": "test",
         "AUTH_RATE_LIMIT_MAX": TEST_AUTH_RATE_LIMIT_MAX,
+        "INQUIRY_RATE_LIMIT_MAX": TEST_INQUIRY_RATE_LIMIT_MAX,
     }
 
     print(

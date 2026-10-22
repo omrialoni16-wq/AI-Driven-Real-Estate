@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Home, LogOut, ChevronDown, UserPlus, Search } from "lucide-react";
+import { Plus, Home, LogOut, ChevronDown, UserPlus, Search, Inbox } from "lucide-react";
 
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -12,6 +12,8 @@ import AIChat from "./components/AIChat";
 import EditPropertyForm from "./components/EditPropertyForm";
 import LoginForm from "./components/LoginForm";
 import AddAdminForm from "./components/AddAdminForm";
+import InquiryForm from "./components/InquiryForm";
+import InquiriesPanel from "./components/InquiriesPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +38,15 @@ function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState(null);
+  const [inquiringProperty, setInquiringProperty] = useState(null);
+
+  const [isInquiriesOpen, setIsInquiriesOpen] = useState(false);
+  const [inquiries, setInquiries] = useState([]);
+  const [inquiryStatusFilter, setInquiryStatusFilter] = useState("all");
+  const [inquiriesPage, setInquiriesPage] = useState(1);
+  const [totalInquiries, setTotalInquiries] = useState(0);
+  const [isInquiriesLoading, setIsInquiriesLoading] = useState(false);
+  const inquiriesPerPage = 20;
 
   const [filters, setFilters] = useState({
     city: "",
@@ -124,6 +135,44 @@ function App() {
     }
   };
 
+  const fetchInquiries = async (page = 1, status = inquiryStatusFilter) => {
+    setIsInquiriesLoading(true);
+    try {
+      const params = { page, limit: inquiriesPerPage };
+      if (status !== "all") {
+        params.status = status;
+      }
+      const response = await api.get("/api/inquiries", { params });
+      setInquiries(response.data.inquiries || []);
+      setTotalInquiries(response.data.totalInquiries || 0);
+      setInquiriesPage(page);
+    } catch (error) {
+      console.error("Failed to fetch inquiries", error);
+    } finally {
+      setIsInquiriesLoading(false);
+    }
+  };
+
+  const openInquiries = () => {
+    setIsInquiriesOpen(true);
+    fetchInquiries(1, inquiryStatusFilter);
+  };
+
+  const handleInquiryStatusFilterChange = (status) => {
+    setInquiryStatusFilter(status);
+    fetchInquiries(1, status);
+  };
+
+  const handleInquiryStatusChange = async (id, status) => {
+    try {
+      await api.patch(`/api/inquiries/${id}`, { status });
+      fetchInquiries(inquiriesPage, inquiryStatusFilter);
+    } catch (error) {
+      console.error("Error updating inquiry status:", error);
+      alert("לא ניתן היה לעדכן את סטטוס הפנייה. נסה שוב.");
+    }
+  };
+
   const handlePaginationChange = (newPage) => {
     setCurrentPage(newPage);
     fetchProperties(newPage, filters);
@@ -157,6 +206,10 @@ function App() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={openInquiries}>
+                    <Inbox />
+                    פניות
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setIsAddAdminOpen(true)}>
                     <UserPlus />
                     הוספת מנהל
@@ -217,6 +270,7 @@ function App() {
                 isAdmin={!!user}
                 onDelete={handleDelete}
                 onEdit={(propertyToEdit) => setEditingProperty(propertyToEdit)}
+                onInquire={(propertyToInquire) => setInquiringProperty(propertyToInquire)}
               />
             ))}
           </div>
@@ -276,6 +330,51 @@ function App() {
               onClose={() => setEditingProperty(null)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Guest inquiry dialog */}
+      <Dialog
+        open={!!inquiringProperty}
+        onOpenChange={(open) => !open && setInquiringProperty(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>פנייה לגבי הנכס</DialogTitle>
+            <DialogDescription>
+              {inquiringProperty &&
+                `${inquiringProperty.street}, ${inquiringProperty.city}`}
+            </DialogDescription>
+          </DialogHeader>
+          {inquiringProperty && (
+            <InquiryForm
+              property={inquiringProperty}
+              onSuccess={() => setInquiringProperty(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin inquiries dialog */}
+      <Dialog open={isInquiriesOpen} onOpenChange={setIsInquiriesOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>פניות לקוחות</DialogTitle>
+            <DialogDescription>
+              פניות שהשאירו גולשים לגבי נכסים.
+            </DialogDescription>
+          </DialogHeader>
+          <InquiriesPanel
+            inquiries={inquiries}
+            isLoading={isInquiriesLoading}
+            statusFilter={inquiryStatusFilter}
+            onStatusFilterChange={handleInquiryStatusFilterChange}
+            onStatusChange={handleInquiryStatusChange}
+            currentPage={inquiriesPage}
+            totalInquiries={totalInquiries}
+            inquiriesPerPage={inquiriesPerPage}
+            onPageChange={(page) => fetchInquiries(page, inquiryStatusFilter)}
+          />
         </DialogContent>
       </Dialog>
 

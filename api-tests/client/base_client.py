@@ -61,6 +61,9 @@ class BaseClient:
     def put(self, path: str, **kwargs) -> requests.Response:
         return self.request("PUT", path, **kwargs)
 
+    def patch(self, path: str, **kwargs) -> requests.Response:
+        return self.request("PATCH", path, **kwargs)
+
     def delete(self, path: str, **kwargs) -> requests.Response:
         return self.request("DELETE", path, **kwargs)
 

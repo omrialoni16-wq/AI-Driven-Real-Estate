@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { BedDouble, Layers, Maximize, Home, Pencil, Trash2, MapPin } from "lucide-react";
+import { BedDouble, Layers, Maximize, Home, Pencil, Trash2, MapPin, MessageSquare } from "lucide-react";
 import PropertyMapDialog from "./PropertyMapDialog";
 
-const PropertyCard = ({ property, isAdmin, onDelete, onEdit }) => {
+const PropertyCard = ({ property, isAdmin, onDelete, onEdit, onInquire }) => {
   const [isMapOpen, setIsMapOpen] = useState(false);
 
   return (
@@ -76,6 +76,18 @@ const PropertyCard = ({ property, isAdmin, onDelete, onEdit }) => {
             </span>
           </div>
         </div>
+
+        {!isAdmin && (
+          <div className="mt-4 border-t border-border pt-4">
+            <button
+              onClick={() => onInquire(property)}
+              className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-[13.5px] font-semibold transition-colors hover:border-foreground/40"
+            >
+              <MessageSquare className="size-[15px]" />
+              צור קשר
+            </button>
+          </div>
+        )}
 
         {isAdmin && (
           <div className="mt-4 flex gap-2 border-t border-border pt-4">

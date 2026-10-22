@@ -60,6 +60,19 @@ def admin_payload(**overrides: Any) -> dict[str, Any]:
     return payload
 
 
+def inquiry_payload(**overrides: Any) -> dict[str, Any]:
+    """Body for POST /api/properties/:id/inquiries: a guest with both contact details.
+    Override phone or email with None to drop it."""
+    payload = {
+        "name": "Inquiry Test",
+        "phone": "050-1234567",
+        "email": f"guest-{unique_suffix()}@example.test",
+        "message": f"Is this property still available? ({unique_suffix()})",
+    }
+    payload.update(overrides)
+    return {key: value for key, value in payload.items() if value is not None}
+
+
 def property_payload_without(field: str) -> dict[str, Any]:
     """A valid property payload with one field removed."""
     payload = property_payload()

@@ -1,4 +1,5 @@
 import Property from "../models/Property.js";
+import Inquiry from "../models/Inquiry.js";
 import { geocodeAddress } from "./GeocodeService.js";
 
 export const fetchPropertiesWithPagination = async (
@@ -79,6 +80,9 @@ export const createProperty = async (propertyData) => {
 export const deleteProperty = async (id) => {
   try {
     const deletedProperty = await Property.findByIdAndDelete(id);
+    if (deletedProperty) {
+      await Inquiry.deleteMany({ property: deletedProperty._id });
+    }
     return deletedProperty;
   } catch (error) {
     console.error("Failed deleting Property!:", error);

@@ -8,6 +8,7 @@ import connectDB from "./src/config/db.js";
 import "./src/config/authDb.js";
 import propertyRoutes from "./src/routes/PropertyRoutes.js";
 import authRoutes from "./src/routes/authRoutes.js";
+import inquiryRoutes from "./src/routes/InquiryRoutes.js";
 
 const app = express();
 
@@ -43,6 +44,7 @@ connectDB();
 
 app.use('/api',authRoutes);
 app.use('/api',propertyRoutes);
+app.use('/api',inquiryRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

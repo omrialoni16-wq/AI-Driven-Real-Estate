@@ -6,7 +6,7 @@ An automated test suite, in Python and pytest, for the backend of this repo's re
 
 It covers login and session handling, admin-only authorization, creating/editing/deleting listings, input validation, search, filtering and pagination, plus contract checks for the two endpoints that call outside services.
 
-**A normal run ends with `45 passed, 15 xfailed`.** The 15 *xfailed* ("expected to fail") tests aren't broken tests. Each one asserts the correct behaviour for a real bug found in the API and documented in [FINDINGS.md](FINDINGS.md), so it fails for exactly that reason. When a bug gets fixed, its test starts passing and the run fails on purpose, as a reminder to remove the marker.
+**A normal run ends with `60 passed, 15 xfailed`.** The 15 *xfailed* ("expected to fail") tests aren't broken tests. Each one asserts the correct behaviour for a real bug found in the API and documented in [FINDINGS.md](FINDINGS.md), so it fails for exactly that reason. When a bug gets fixed, its test starts passing and the run fails on purpose, as a reminder to remove the marker.
 
 ---
 

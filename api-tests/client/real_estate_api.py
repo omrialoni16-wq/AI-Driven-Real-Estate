@@ -95,6 +95,20 @@ class RealEstateApi(BaseClient):
         """GET /api/properties/:id/location. Calls Nominatim and writes lat/lng to the DB."""
         return self.get(f"{API}/properties/{property_id}/location")
 
+    # ─── Inquiries ───────────────────────────────────────────────────────────
+
+    def create_inquiry(self, property_id: str, payload: dict[str, Any]) -> requests.Response:
+        """POST /api/properties/:id/inquiries. Public: a guest asking about a property."""
+        return self.post(f"{API}/properties/{property_id}/inquiries", json=payload)
+
+    def list_inquiries(self, **params: Any) -> requests.Response:
+        """GET /api/inquiries. params: status, page, limit."""
+        return self.get(f"{API}/inquiries", params=params)
+
+    def update_inquiry(self, inquiry_id: str, payload: dict[str, Any]) -> requests.Response:
+        """PATCH /api/inquiries/:id with {status}."""
+        return self.patch(f"{API}/inquiries/{inquiry_id}", json=payload)
+
     # ─── AI chat ─────────────────────────────────────────────────────────────
 
     def chat(self, payload: dict[str, Any]) -> requests.Response:
