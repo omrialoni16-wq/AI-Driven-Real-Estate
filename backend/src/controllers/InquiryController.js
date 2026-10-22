@@ -4,6 +4,7 @@ import {
   updateInquiryStatus,
 } from "../service/InquiryService.js";
 import { INQUIRY_STATUSES } from "../models/Inquiry.js";
+import { listDemoInquiries } from "../demo/demoInquiries.js";
 
 const isClientError = (error) =>
   error.name === "ValidationError" || error.name === "CastError";
@@ -34,7 +35,9 @@ export const addInquiry = async (req, res) => {
 export const getInquiries = async (req, res) => {
   try {
     const { status, page, limit } = req.query;
-    const result = await listInquiries({ status, page, limit });
+    // The demo admin gets made-up inquiries: real ones hold guests' contact details.
+    const list = req.user.isDemo ? listDemoInquiries : listInquiries;
+    const result = await list({ status, page, limit });
     res.status(200).json({ success: true, ...result });
   } catch (error) {
     console.error("Error in getInquiries controller", error);

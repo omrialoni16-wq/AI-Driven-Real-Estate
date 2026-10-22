@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Plus, Home, LogOut, ChevronDown, UserPlus, Search, Inbox } from "lucide-react";
+import { Plus, Home, LogOut, ChevronDown, UserPlus, Search, Inbox, Eye } from "lucide-react";
+import { toast } from "sonner";
 
-import api from "@/lib/api";
+import api, { isDemoReadOnly } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import PropertyCard from "./components/PropertyCard";
 import PropertyCardSkeleton from "./components/PropertyCardSkeleton";
@@ -16,6 +17,7 @@ import InquiryForm from "./components/InquiryForm";
 import InquiriesPanel from "./components/InquiriesPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +34,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 function App() {
-  const { user, logout } = useAuth();
+  const { user, loginDemo, logout } = useAuth();
+  const [isDemoLoggingIn, setIsDemoLoggingIn] = useState(false);
   const [properties, setProperties] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -108,6 +111,7 @@ function App() {
         await api.delete(`/api/properties/${propertyId}`);
         fetchProperties(currentPage, filters);
       } catch (error) {
+        if (isDemoReadOnly(error)) return;
         console.error("Error deleting property:", error);
         alert("לא ניתן היה למחוק את הנכס. נסה שוב.");
       }
@@ -120,6 +124,7 @@ function App() {
       fetchProperties(1, filters);
       setIsModalOpen(false);
     } catch (error) {
+      if (isDemoReadOnly(error)) return;
       console.error("Failed adding property:", error);
       alert("לא ניתן היה להוסיף את הנכס. בדוק את קונסולת השרת.");
     }
@@ -168,8 +173,25 @@ function App() {
       await api.patch(`/api/inquiries/${id}`, { status });
       fetchInquiries(inquiriesPage, inquiryStatusFilter);
     } catch (error) {
+      if (isDemoReadOnly(error)) return;
       console.error("Error updating inquiry status:", error);
       alert("לא ניתן היה לעדכן את סטטוס הפנייה. נסה שוב.");
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setIsDemoLoggingIn(true);
+    try {
+      await loginDemo();
+      setIsLoginOpen(false);
+      toast.success("נכנסת כאדמין דמו", {
+        description: "אפשר לראות את כל כלי הניהול. שינויים לא יישמרו.",
+      });
+    } catch (error) {
+      console.error("Demo login failed:", error);
+      toast.error("לא ניתן היה להיכנס לדמו. נסה/י שוב בעוד רגע.");
+    } finally {
+      setIsDemoLoggingIn(false);
     }
   };
 
@@ -181,6 +203,22 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background">
+      {user?.isDemo && (
+        <div className="sticky top-0 z-30 border-b border-amber-300/60 bg-amber-100 text-amber-950 dark:border-amber-400/30 dark:bg-amber-950 dark:text-amber-100">
+          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2 text-sm sm:px-6">
+            <p className="flex items-center gap-2 font-medium">
+              <Eye className="size-4 shrink-0" />
+              מצב דמו · קריאה בלבד, שינויים לא נשמרים
+            </p>
+            <button
+              onClick={logout}
+              className="font-semibold underline underline-offset-4 hover:opacity-80"
+            >
+              יציאה מהדמו
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
         <header className="mb-10 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
@@ -222,13 +260,28 @@ function App() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button
-                variant="outline"
-                onClick={() => setIsLoginOpen(true)}
-                className="h-10 rounded-xl"
-              >
-                התחברות
-              </Button>
+              <>
+                <Button
+                  onClick={handleDemoLogin}
+                  disabled={isDemoLoggingIn}
+                  className="h-10 rounded-xl"
+                >
+                  <Eye />
+                  <span className="hidden sm:inline">
+                    {isDemoLoggingIn ? "נכנס…" : "כניסה כאדמין דמו"}
+                  </span>
+                  <span className="sm:hidden">
+                    {isDemoLoggingIn ? "נכנס…" : "דמו"}
+                  </span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsLoginOpen(true)}
+                  className="h-10 rounded-xl"
+                >
+                  התחברות
+                </Button>
+              </>
             )}
             <ThemeToggle />
           </div>
@@ -388,6 +441,19 @@ function App() {
             </DialogDescription>
           </DialogHeader>
           <LoginForm onSuccess={() => setIsLoginOpen(false)} />
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            או
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleDemoLogin}
+            disabled={isDemoLoggingIn}
+          >
+            <Eye />
+            {isDemoLoggingIn ? "נכנס…" : "צפייה בצד הניהול במצב דמו"}
+          </Button>
         </DialogContent>
       </Dialog>
 
@@ -416,9 +482,16 @@ function App() {
             <Plus />
           </Button>
 
-          <AIChat onActionCompleted={() => fetchProperties(1, filters)} />
+          <AIChat
+            // A new key per account, so leaving the demo resets the chat.
+            key={user.email}
+            isDemo={!!user.isDemo}
+            onActionCompleted={() => fetchProperties(1, filters)}
+          />
         </>
       )}
+
+      <Toaster position="top-center" />
     </div>
   );
 }

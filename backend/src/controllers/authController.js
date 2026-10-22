@@ -1,8 +1,14 @@
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
 const TOKEN_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
+const DEMO_TOKEN_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
+
+// The demo admin has no row in the users collection: its identity lives only in
+// the JWT, and `isDemo` is what blockDemo and the inquiries/chat controllers check.
+const DEMO_USER = { name: "אדמין דמו", email: "demo@example.com" };
 
 // Valid bcrypt hash with no corresponding real password — used to equalize
 // login timing between "user not found" and "wrong password" so response
@@ -41,11 +47,23 @@ export const login = async (req, res) => {
     );
 
     res.cookie("token", token, cookieOptions);
-    res.status(200).json({ user: { name: user.name, email: user.email } });
+    res.status(200).json({ user: { name: user.name, email: user.email, isDemo: false } });
   } catch (error) {
     console.error("Error in login controller", error);
     res.status(500).json({ message: "Server error during login." });
   }
+};
+
+export const demoLogin = (req, res) => {
+  // demoId identifies this one demo session, so the chat can allow it a single message.
+  const token = jwt.sign(
+    { userId: null, ...DEMO_USER, isDemo: true, demoId: crypto.randomUUID() },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h", algorithm: "HS256" },
+  );
+
+  res.cookie("token", token, { ...baseCookieOptions, maxAge: DEMO_TOKEN_MAX_AGE_MS });
+  res.status(200).json({ user: { ...DEMO_USER, isDemo: true } });
 };
 
 export const register = async (req, res) => {
@@ -82,12 +100,16 @@ export const logout = (req, res) => {
 };
 
 export const me = async (req, res) => {
+  if (req.user.isDemo) {
+    return res.status(200).json({ user: { ...DEMO_USER, isDemo: true } });
+  }
+
   try {
     const user = await User.findById(req.user.userId);
     if (!user) {
       return res.status(401).json({ message: "Account no longer exists." });
     }
-    res.status(200).json({ user: { name: user.name, email: user.email } });
+    res.status(200).json({ user: { name: user.name, email: user.email, isDemo: false } });
   } catch (error) {
     console.error("Error in me controller", error);
     res.status(500).json({ message: "Server error while fetching session." });

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import api from "@/lib/api";
+import api, { isDemoReadOnly } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ const AddAdminForm = ({ onSuccess }) => {
       await api.post("/api/auth/register", { name, email, password });
       onSuccess?.();
     } catch (err) {
+      if (isDemoReadOnly(err)) return; // api.js already showed the demo toast
       setError(
         err.response?.data?.message || "שגיאה בהוספת מנהל. נסה/י שוב.",
       );

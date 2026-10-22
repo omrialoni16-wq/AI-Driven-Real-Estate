@@ -62,6 +62,10 @@ class RealEstateApi(BaseClient):
     def register(self, payload: dict[str, Any]) -> requests.Response:
         return self.post(f"{API}/auth/register", json=payload)
 
+    def demo_login(self) -> requests.Response:
+        """POST /api/auth/demo: start a read-only demo admin session, no credentials."""
+        return self.post(f"{API}/auth/demo")
+
     # ─── Properties ──────────────────────────────────────────────────────────
 
     def list_properties(self, **params: Any) -> requests.Response:

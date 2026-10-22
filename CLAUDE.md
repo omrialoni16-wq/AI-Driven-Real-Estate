@@ -29,19 +29,22 @@ backend/
       Inquiry.js              # Guest inquiry on a property (name?, phone/email — at least one, message, status), default connection
     routes/
       PropertyRoutes.js       # All property + chat route definitions
-      authRoutes.js           # /api/auth/login, /api/auth/logout, /api/auth/me
+      authRoutes.js           # /api/auth/login, /api/auth/logout, /api/auth/me, /api/auth/demo
       InquiryRoutes.js        # Guest inquiry create (public, rate-limited) + admin list/status update
     middleware/
       requireAuth.js          # Verifies JWT cookie, attaches req.user, 401 on failure
+      blockDemo.js            # 403 DEMO_READ_ONLY for the demo admin on every write route
     controllers/
       PropertyController.js   # HTTP layer — validates, calls service
       chatController.js       # AI chat pipeline (Groq tool-use)
-      authController.js       # login/logout/me handlers — bcrypt compare, JWT sign, cookie set/clear
+      authController.js       # login/logout/me/demoLogin handlers — bcrypt compare, JWT sign, cookie set/clear
       InquiryController.js    # Inquiry HTTP layer — honeypot check, 400/404 mapping, status validation
     service/
       PropertyService.js      # DB logic — queries, pagination, filtering (REST API)
       AgentService.js         # DB logic for agent tools — addProperty, searchPrices, searchProperties
       InquiryService.js       # DB logic for inquiries — create (field whitelist), paginated list with populated property, status update
+    demo/
+      demoInquiries.js        # Made-up inquiries the demo admin sees instead of real guests' details
   scripts/
     seedAdmins.js              # One-off script to upsert admin accounts into the auth cluster (not run by the server)
 frontend/
@@ -50,9 +53,9 @@ frontend/
     App.jsx                   # Root: state, fetch, filter, pagination, login/logout header, admin-gated UI
     lib/
       utils.js                 # cn() class-merge helper (clsx + tailwind-merge)
-      api.js                    # Shared axios instance (baseURL + withCredentials: true for the auth cookie)
+      api.js                    # Shared axios instance (baseURL: VITE_API_URL, else localhost:5000 in dev / same-origin in prod; withCredentials), demo read-only toast interceptor
     context/
-      AuthContext.jsx          # user/isLoading state, login()/logout(), GET /api/auth/me on mount
+      AuthContext.jsx          # user/isLoading state, login()/loginDemo()/logout(), GET /api/auth/me on mount
     components/
       FilterBar.jsx            # City / maxPrice / type inputs + type filter pills
       PropertyCard.jsx         # Single listing card (edit/delete buttons shown only when isAdmin) — hand-styled, does NOT use ui/ primitives (see Styling)
@@ -67,7 +70,7 @@ frontend/
       AIChat.jsx               # Chat widget → POST /api/chat (admin-only)
       theme-provider.jsx       # Light/dark context, persists to localStorage
       ThemeToggle.jsx          # Sun/moon button, toggles ThemeProvider theme
-      ui/                      # shadcn/ui primitives (button, card, dialog, input, label, select, textarea, badge, dropdown-menu)
+      ui/                      # shadcn/ui primitives (button, card, dialog, input, label, select, textarea, badge, dropdown-menu, sonner)
 ```
 
 ## Architecture
@@ -83,7 +86,7 @@ frontend/
 Admin-only JWT auth, guest browsing stays public. Guests can view/filter/paginate listings; only logged-in admins get CRUD (add/edit/delete) and the AI Assistant.
 
 - **Storage:** admin accounts live in a **separate MongoDB Atlas cluster** from the property data, connected via `authDb.js` (`mongoose.createConnection`, not the default singleton). Keeps credentials isolated even if the properties DB connection string ever leaks.
-- **Token:** `POST /api/auth/login` (`authController.js`) checks `bcryptjs.compare()` against `User.passwordHash`, signs a JWT (`jsonwebtoken`, `{ userId, name, email }`, 7d expiry) with `JWT_SECRET`, and sets it as an **httpOnly cookie** (`sameSite: "lax"`) — never returned in the JSON body, so frontend JS can't read or leak it.
+- **Token:** `POST /api/auth/login` (`authController.js`) checks `bcryptjs.compare()` against `User.passwordHash`, signs a JWT (`jsonwebtoken`, `{ userId, name, email }`, 3h expiry) with `JWT_SECRET`, and sets it as an **httpOnly cookie** (`sameSite: "lax"`) — never returned in the JSON body, so frontend JS can't read or leak it.
 - **Session check:** frontend can't read an httpOnly cookie, so `AuthContext.jsx` calls `GET /api/auth/me` on mount to determine login state; `requireAuth.js` middleware verifies the cookie on every protected route and attaches `req.user`.
 - **CORS:** since the cookie must cross the `5173` → `5000` origin boundary, `server.js` uses a dynamic origin-validation function (allowing both `http://localhost:5173` and `http://127.0.0.1:5173` — a static origin string would only ever match one of them and silently break the other) with `credentials: true`; the frontend's shared `lib/api.js` axios instance sets `withCredentials: true` on every request. Both sides are required or the cookie won't be sent/accepted.
 - **Protected routes:** `requireAuth` wraps `POST/PUT/DELETE /api/properties`, all of `/api/chat` (the AI Assistant is admin-only, not just its `addProperty` tool), `POST /api/auth/register`, and `GET/PATCH /api/inquiries`. `GET /api/properties`, `GET /api/search` and `POST /api/properties/:id/inquiries` stay open.
@@ -91,6 +94,16 @@ Admin-only JWT auth, guest browsing stays public. Guests can view/filter/paginat
 - **Frontend gating:** `App.jsx` reads `user` from `useAuth()` to show a "התחברות" (login) button vs. a dropdown with the admin's name (Add Admin / logout) in the header, and conditionally renders the add-property FAB, `AIChat`, and each `PropertyCard`'s edit/delete footer (`isAdmin` prop) only when logged in.
 
 Required env vars in `backend/.env`: `AUTH_MONGO_URI`, `JWT_SECRET` (in addition to `MONGO_URI`, `GROQ_API_KEY`).
+
+## Demo admin
+
+A "כניסה כאדמין דמו" button (header and login dialog) lets portfolio visitors see the full admin UI without credentials. It is read-only.
+
+- **Session:** `POST /api/auth/demo` (`demoLogin`) signs a 1h JWT with `{ userId: null, name, email, isDemo: true, demoId }`. There is no user row; `me` answers from the JWT. Rate-limited separately from login (`DEMO_RATE_LIMIT_MAX`, 20 per 15 min). `DEMO_ENABLED=false` removes the route.
+- **Writes:** `blockDemo` (after `requireAuth`) answers `403 { code: "DEMO_READ_ONLY" }` on property POST/PUT/DELETE, inquiry PATCH and register. **Any new write route needs `blockDemo` too.** The frontend's axios interceptor in `lib/api.js` shows one toast for that code; handlers check `isDemoReadOnly(error)` to skip their own `alert`/error.
+- **Inquiries:** `getInquiries` returns `listDemoInquiries` (fixed fake guests attached to real properties, same shape and paging as `listInquiries`), so real contact details never reach the demo.
+- **Chat:** one message per `demoId` (in-memory map in `chatController.js`; the message is given back if the pipeline errors), plus a per-IP limit for demo users only (`DEMO_CHAT_RATE_LIMIT_MAX`, 5/hour). In demo mode the client's `history` is ignored, `addProperty` returns `demo_blocked` without saving, the loop is capped at 4 iterations, and `DEMO_PROMPT_ADDENDUM` tells the model not to ask follow-ups. `AIChat.jsx` shows a demo welcome listing the capabilities, example-question chips, and locks the input after the message.
+- **UI:** a sticky amber banner ("מצב דמו · קריאה בלבד") with an exit button while `user.isDemo`.
 
 ## API
 
@@ -105,6 +118,7 @@ Base URL: `http://localhost:5000`
 | POST | `/api/chat` | `{ message, history[] }` |
 | GET | `/api/search` | `city`, `type`, `minPrice`, `maxPrice`, `rooms`, `floor`, `minSize`, `maxSize`, `tags[]` |
 | POST | `/api/auth/login` | `{ email, password }` — sets httpOnly JWT cookie |
+| POST | `/api/auth/demo` | — starts a read-only demo admin session (1h cookie) |
 | POST | `/api/auth/logout` | — clears the cookie |
 | GET | `/api/auth/me` | — (requireAuth) returns `{ user }` for the current session |
 | POST | `/api/auth/register` | (requireAuth) `{ name, email, password }` — creates another admin |

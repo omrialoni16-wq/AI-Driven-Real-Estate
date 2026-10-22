@@ -6,6 +6,7 @@ import {
   setInquiryStatus,
 } from "../controllers/InquiryController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { blockDemo } from "../middleware/blockDemo.js";
 
 const router = express.Router();
 
@@ -24,6 +25,6 @@ const inquiryLimiter = rateLimit({
 
 router.post("/properties/:id/inquiries", inquiryLimiter, addInquiry);
 router.get("/inquiries", requireAuth, getInquiries);
-router.patch("/inquiries/:id", requireAuth, setInquiryStatus);
+router.patch("/inquiries/:id", requireAuth, blockDemo, setInquiryStatus);
 
 export default router;

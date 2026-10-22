@@ -5,6 +5,7 @@ const AuthContext = createContext({
   user: null,
   isLoading: true,
   login: async () => {},
+  loginDemo: async () => {},
   logout: async () => {},
 });
 
@@ -25,13 +26,20 @@ export function AuthProvider({ children }) {
     setUser(res.data.user);
   };
 
+  // Read-only demo admin for portfolio visitors: no credentials, the server
+  // issues a short demo session.
+  const loginDemo = async () => {
+    const res = await api.post("/api/auth/demo");
+    setUser(res.data.user);
+  };
+
   const logout = async () => {
     await api.post("/api/auth/logout");
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginDemo, logout }}>
       {children}
     </AuthContext.Provider>
   );

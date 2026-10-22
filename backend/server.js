@@ -12,8 +12,12 @@ import inquiryRoutes from "./src/routes/InquiryRoutes.js";
 
 const app = express();
 
+// How many proxies sit in front of the app, so req.ip (and every rate limit) is
+// the visitor's IP. Render alone is 1; Vercel's /api rewrite in front of Render
+// makes it 2, and with 1 every visitor would share Vercel's IP and one limit.
 if (process.env.NODE_ENV === "production") {
-  app.set("trust proxy", 1);
+  const hops = Number(process.env.TRUST_PROXY_HOPS?.trim());
+  app.set("trust proxy", Number.isInteger(hops) && hops > 0 ? hops : 1);
 }
 
 const ALLOWED_ORIGINS = [

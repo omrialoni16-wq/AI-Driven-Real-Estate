@@ -31,6 +31,22 @@ cd backend && npm install && node server.js
 cd frontend && npm install && npm run dev
 ```
 
+## Admin demo
+
+The header's "כניסה כאדמין דמו" button logs a visitor in as a read-only demo admin: every admin screen is visible, the server rejects every change, the inquiries panel shows made-up guests, and the AI assistant answers one message.
+
+## Deployment
+
+The frontend runs on Vercel and the backend on Render. Vercel forwards `/api/*` to Render (`frontend/vercel.json`), so the browser only ever talks to the Vercel domain and the session cookie stays first-party (cross-site cookies are blocked by Safari and in private windows).
+
+**Backend (Render):** create the service from `render.yaml`, then set `MONGO_URI`, `AUTH_MONGO_URI`, `GROQ_API_KEY`, `JWT_SECRET` and `CORS_EXTRA_ORIGINS` (the Vercel site's origin, e.g. `https://your-app.vercel.app`) in the dashboard. `TRUST_PROXY_HOPS=2` is already set: requests pass through Vercel and Render's proxy, and with the wrong count every visitor would share one rate limit.
+
+**Frontend (Vercel):** project root `frontend`, framework Vite. Replace `YOUR-RENDER-SERVICE` in `frontend/vercel.json` with the Render service's host. No environment variables are needed: a production build calls `/api/...` on its own origin.
+
+**MongoDB Atlas:** Render's outbound IPs aren't fixed, so both clusters' Network Access lists must allow `0.0.0.0/0`.
+
+Render's free tier sleeps when idle, so the first request after a while (including the first demo login) can take about a minute.
+
 ## Tests
 
 The API test suite treats the backend as a black box over HTTP, against its own test databases. It covers authentication, admin-only authorization, listing CRUD, validation, search and pagination. CI runs it on every push and pull request against a throwaway MongoDB, with no repository secrets.

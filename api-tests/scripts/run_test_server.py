@@ -36,6 +36,10 @@ BACKEND_DIR = API_TESTS_DIR.parent / "backend"
 TEST_AUTH_RATE_LIMIT_MAX = "1000"
 # Same for guest inquiries, which allow 5 per 15 minutes per IP.
 TEST_INQUIRY_RATE_LIMIT_MAX = "1000"
+# Same for demo logins (20 per 15 minutes per IP) and demo chat messages (5 per
+# hour per IP; requests rejected with 400 count too).
+TEST_DEMO_RATE_LIMIT_MAX = "1000"
+TEST_DEMO_CHAT_RATE_LIMIT_MAX = "1000"
 
 
 def main() -> int:
@@ -57,6 +61,8 @@ def main() -> int:
         "NODE_ENV": "test",
         "AUTH_RATE_LIMIT_MAX": TEST_AUTH_RATE_LIMIT_MAX,
         "INQUIRY_RATE_LIMIT_MAX": TEST_INQUIRY_RATE_LIMIT_MAX,
+        "DEMO_RATE_LIMIT_MAX": TEST_DEMO_RATE_LIMIT_MAX,
+        "DEMO_CHAT_RATE_LIMIT_MAX": TEST_DEMO_CHAT_RATE_LIMIT_MAX,
     }
 
     print(

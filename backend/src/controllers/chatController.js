@@ -19,6 +19,7 @@ const PROPERTY_TYPES = [
   "סטודיו/ לופט",
 ];
 const MAX_TOOL_ITERATIONS = 8;
+const DEMO_MAX_TOOL_ITERATIONS = 4;
 const AGENT_MODEL = "openai/gpt-oss-20b";
 
 const CITY_MAP = {
@@ -158,13 +159,39 @@ Always translate city/street names to Hebrew before calling any tool. Always rep
 
 Never reveal internal implementation details: do not mention tool/function names (such as addProperty, searchPrices, searchProperties), parameter names, JSON schemas, or any other technical detail about how you work. If the user asks what you can do or which tools/capabilities you have, answer conversationally in plain Hebrew describing the three capabilities above in natural language (e.g. "אני יכול לעזור לך לרשום נכס חדש", "לבדוק מחירי שוק בעיר מסוימת", "לחפש נכסים לפי קריטריונים כמו עיר, מחיר וחדרים") — never as a technical list of function names.`;
 
+// Appended for the demo admin. The visitor gets exactly one message, so a
+// follow-up question could never be answered.
+const DEMO_PROMPT_ADDENDUM = `
+
+DEMO MODE: this user is a portfolio visitor trying a read-only demo, and this is the ONLY message they can send. Never ask a follow-up question or ask for more details, and do not end your reply with a question or an offer of further help ("איך אפשר לעזור?"): they cannot reply. Give the most complete, useful answer you can right now. If they ask to list/add a property, the addProperty tool will not save anything in demo mode: explain warmly that adding is disabled in the demo and show the numbered list of fields you would collect from a real admin.`;
+
+// ─── Demo: one message per demo session ──────────────────────────────────────
+
+// demoId (from the demo JWT) → when its one message was sent. In memory: a
+// restart forgets it, which at worst gives a visitor one more message.
+const usedDemoChats = new Map();
+const DEMO_SESSION_MS = 60 * 60 * 1000; // matches the demo token's 1h expiry
+
+function claimDemoChat(demoId) {
+  const now = Date.now();
+  for (const [id, usedAt] of usedDemoChats) {
+    if (now - usedAt > DEMO_SESSION_MS) usedDemoChats.delete(id);
+  }
+  if (usedDemoChats.has(demoId)) return false;
+  usedDemoChats.set(demoId, now);
+  return true;
+}
+
 // ─── Tool dispatch ────────────────────────────────────────────────────────────
 
-async function dispatchTool(name, args) {
+async function dispatchTool(name, args, isDemo) {
   if (args.city) args.city = normalizeCity(args.city);
 
   try {
     if (name === "addProperty") {
+      if (isDemo) {
+        return { status: "demo_blocked", error: "Demo mode is read-only; nothing was saved." };
+      }
       return await agentAddProperty(args);
     }
     if (name === "searchPrices") {
@@ -185,11 +212,12 @@ async function dispatchTool(name, args) {
 
 // ─── Unified agentic loop ─────────────────────────────────────────────────────
 
-async function runAgentLoop(messages) {
+async function runAgentLoop(messages, isDemo) {
   let actionPerformed = false;
   let propertyId = null;
+  const maxIterations = isDemo ? DEMO_MAX_TOOL_ITERATIONS : MAX_TOOL_ITERATIONS;
 
-  for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+  for (let i = 0; i < maxIterations; i++) {
     const response = await openai.chat.completions.create({
       model: AGENT_MODEL,
       messages,
@@ -208,7 +236,7 @@ async function runAgentLoop(messages) {
     const toolResults = await Promise.all(
       assistantMsg.tool_calls.map(async (tc) => {
         const args = JSON.parse(tc.function.arguments);
-        const result = await dispatchTool(tc.function.name, args);
+        const result = await dispatchTool(tc.function.name, args, isDemo);
         return { tc, result };
       }),
     );
@@ -238,6 +266,7 @@ async function runAgentLoop(messages) {
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export const handleChat = async (req, res) => {
+  const isDemo = !!req.user?.isDemo;
   try {
     const { message, history = [] } = req.body;
     if (!message) {
@@ -246,13 +275,24 @@ export const handleChat = async (req, res) => {
         .json({ error: "Missing 'message' in request body." });
     }
 
+    if (isDemo && !claimDemoChat(req.user.demoId)) {
+      return res.status(403).json({
+        code: "DEMO_CHAT_USED",
+        message: "The demo allows one chat message.",
+      });
+    }
+
     const messages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...history, // spread as-is to preserve tool_calls in assistant messages
+      {
+        role: "system",
+        content: isDemo ? SYSTEM_PROMPT + DEMO_PROMPT_ADDENDUM : SYSTEM_PROMPT,
+      },
+      // The demo is a single message, so any history the client sends is ignored.
+      ...(isDemo ? [] : history), // spread as-is to preserve tool_calls in assistant messages
       { role: "user", content: message },
     ];
 
-    const { reply, actionPerformed, propertyId } = await runAgentLoop(messages);
+    const { reply, actionPerformed, propertyId } = await runAgentLoop(messages, isDemo);
 
     return res.status(200).json({
       reply,
@@ -261,6 +301,8 @@ export const handleChat = async (req, res) => {
       updatedHistory: messages.slice(1), 
     });
   } catch (error) {
+    // The visitor got no answer, so give them their one message back.
+    if (isDemo) usedDemoChats.delete(req.user.demoId);
     console.error("Fatal error in handleChat pipeline:", error);
     return res.status(500).json({
       error: "Internal Server Error",

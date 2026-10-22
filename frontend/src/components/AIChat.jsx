@@ -6,30 +6,53 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-function AIChat({ onActionCompleted }) {
+const WELCOME_MESSAGE =
+  "היי! אני העוזר החכם שלך. אני יכול להוסיף מודעות חדשות, לחפש נכסים או לבדוק מחירי שוק — פשוט תשאל/י!";
+
+// The demo allows one message (enforced by the server too), so the welcome
+// says so up front and lists what the assistant can do.
+const DEMO_WELCOME_MESSAGE = `היי! זה מצב דמו, ואפשר לשלוח לי הודעה אחת בלבד, אז כדאי לבחור שאלה טובה 🙂
+
+הנה מה שאני יודע לעשות:
+1. חיפוש נכסים: לפי עיר, סוג נכס, טווח מחירים, מספר חדרים, קומה וגודל.
+2. מחירי שוק: מחיר ממוצע, מינימום, מקסימום ומחיר למ"ר, לפי עיר, סוג נכס ומספר חדרים.
+3. רישום נכס חדש: אני אוסף את כל הפרטים בשיחה ושומר את המודעה (בדמו לא נשמר כלום).
+
+אפשר לכתוב שאלה משלך או לבחור אחת מהדוגמאות למטה.`;
+
+const DEMO_SUGGESTIONS = [
+  "מה המחיר הממוצע לדירת 4 חדרים בתל אביב?",
+  "תמצא לי דירה בחיפה עד 2 מיליון ש״ח",
+  "אני רוצה לפרסם דירה חדשה, מה צריך?",
+];
+
+function AIChat({ isDemo = false, onActionCompleted }) {
   const [input, setInput] = useState("");
   const [isMinimized, setIsMinimized] = useState(true);
   const [messages, setMessages] = useState([
     {
-      text: "היי! אני העוזר החכם שלך. אני יכול להוסיף מודעות חדשות, לחפש נכסים או לבדוק מחירי שוק — פשוט תשאל/י!",
+      text: isDemo ? DEMO_WELCOME_MESSAGE : WELCOME_MESSAGE,
       sender: "ai",
     },
   ]);
   const [chatHistory, setChatHistory] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [isDemoMessageUsed, setIsDemoMessageUsed] = useState(false);
+  const isInputLocked = isDemo && isDemoMessageUsed;
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const sendMessage = async () => {
-    if (!input.trim()) return;
+  const sendMessage = async (text = input) => {
+    if (!text.trim() || isTyping || isInputLocked) return;
 
-    const userMessage = { text: input, sender: "user" };
+    const userMessage = { text, sender: "user" };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsTyping(true);
+    if (isDemo) setIsDemoMessageUsed(true);
 
     try {
       const response = await api.post("/api/chat", {
@@ -47,13 +70,17 @@ function AIChat({ onActionCompleted }) {
       }
     } catch (error) {
       console.error("Chat error:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: "אופס, אירעה שגיאה בתקשורת עם השרת.",
-          sender: "ai",
-        },
-      ]);
+      const code = error.response?.data?.code;
+      let text = "אופס, אירעה שגיאה בתקשורת עם השרת.";
+      if (code === "DEMO_CHAT_USED") {
+        text = "הודעת הדמו כבר נוצלה בסשן הזה.";
+      } else if (code === "DEMO_CHAT_LIMIT") {
+        text = "נשלחו יותר מדי הודעות דמו מהרשת הזו. נסה/י שוב מאוחר יותר.";
+      } else if (isDemo) {
+        // The server gives the message back when it fails, so let them retry.
+        setIsDemoMessageUsed(false);
+      }
+      setMessages((prev) => [...prev, { text, sender: "ai" }]);
     } finally {
       setIsTyping(false);
     }
@@ -103,6 +130,7 @@ function AIChat({ onActionCompleted }) {
             key={index}
             className={cn(
               "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words",
+              "whitespace-pre-line",
               msg.sender === "ai"
                 ? "self-start rounded-bl-sm bg-muted text-foreground"
                 : "self-end rounded-br-sm bg-primary text-primary-foreground",
@@ -118,23 +146,42 @@ function AIChat({ onActionCompleted }) {
             <span className="size-2 animate-bounce rounded-full bg-muted-foreground" />
           </div>
         )}
+        {isDemo && !isDemoMessageUsed && (
+          <div className="flex flex-col items-start gap-2">
+            {DEMO_SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                onClick={() => sendMessage(suggestion)}
+                className="rounded-full border border-primary/30 px-3 py-1.5 text-start text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
+      {isInputLocked && !isTyping && (
+        <p className="border-t bg-muted/50 px-4 py-2 text-center text-xs text-muted-foreground">
+          הודעת הדמו נוצלה. בגרסה המלאה אפשר להמשיך לשוחח עם העוזר.
+        </p>
+      )}
       <div className="flex items-center gap-2 border-t p-3">
         <Input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          placeholder="הקלד/י הודעה…"
+          placeholder={isInputLocked ? "הודעת הדמו נוצלה" : "הקלד/י הודעה…"}
+          disabled={isInputLocked}
           className="rounded-full"
         />
         <Button
           size="icon"
-          onClick={sendMessage}
-          disabled={!input.trim()}
+          onClick={() => sendMessage()}
+          disabled={!input.trim() || isInputLocked}
           className="shrink-0 rounded-full"
           aria-label="שלח הודעה"
         >
