@@ -13,8 +13,7 @@ import inquiryRoutes from "./src/routes/InquiryRoutes.js";
 const app = express();
 
 // How many proxies sit in front of the app, so req.ip (and every rate limit) is
-// the visitor's IP. Render alone is 1; Vercel's /api rewrite in front of Render
-// makes it 2, and with 1 every visitor would share Vercel's IP and one limit.
+// the visitor's IP. On Vercel that's 1, the default.
 if (process.env.NODE_ENV === "production") {
   const hops = Number(process.env.TRUST_PROXY_HOPS?.trim());
   app.set("trust proxy", Number.isInteger(hops) && hops > 0 ? hops : 1);
@@ -30,15 +29,17 @@ const ALLOWED_ORIGINS = [
 
 app.use(helmet());
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
+  cors((req, callback) => {
+    const origin = req.header("Origin");
+    // On Vercel the frontend and the API share one origin, and browsers still
+    // send Origin on same-origin POST/PUT/DELETE. Allowing the request's own
+    // host covers the production domain and every preview URL.
+    const sameOrigin = origin === `${req.protocol}://${req.get("host")}`;
+    if (!origin || sameOrigin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, { origin: true, credentials: true });
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
   }),
 );
 app.use(express.json({ limit: "10kb" }));
@@ -50,7 +51,13 @@ app.use('/api',authRoutes);
 app.use('/api',propertyRoutes);
 app.use('/api',inquiryRoutes);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// On Vercel, api/index.js imports the app and Vercel runs it as a function;
+// locally (and in the API tests) it listens on a port as before.
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+export default app;

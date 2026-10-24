@@ -37,15 +37,14 @@ The header's "כניסה כאדמין דמו" button logs a visitor in as a read
 
 ## Deployment
 
-The frontend runs on Vercel and the backend on Render. Vercel forwards `/api/*` to Render (`frontend/vercel.json`), so the browser only ever talks to the Vercel domain and the session cookie stays first-party (cross-site cookies are blocked by Safari and in private windows).
+Everything runs as one Vercel project: `frontend/` is built into the static site, and `api/index.js` runs the `backend/` Express app as a Vercel Function. `vercel.json` sends every `/api/*` request to that function, so the site and the API share one origin and the session cookie is first-party.
 
-**Backend (Render):** create the service from `render.yaml`, then set `MONGO_URI`, `AUTH_MONGO_URI`, `GROQ_API_KEY`, `JWT_SECRET` and `CORS_EXTRA_ORIGINS` (the Vercel site's origin, e.g. `https://your-app.vercel.app`) in the dashboard. `TRUST_PROXY_HOPS=2` is already set: requests pass through Vercel and Render's proxy, and with the wrong count every visitor would share one rate limit.
+1. **MongoDB Atlas:** Vercel's outbound IPs aren't fixed, so the cluster's Network Access list must allow `0.0.0.0/0`.
+2. **Import the repo in Vercel** (Add New → Project). Keep the Root Directory as the repository root; `vercel.json` sets the install, build and output settings.
+3. **Environment variables:** `MONGO_URI`, `AUTH_MONGO_URI`, `GROQ_API_KEY`, `JWT_SECRET` (a new random one, 32+ characters) and `NODE_ENV=production`.
+4. **Deploy.** Every push to `main` redeploys.
 
-**Frontend (Vercel):** project root `frontend`, framework Vite. Replace `YOUR-RENDER-SERVICE` in `frontend/vercel.json` with the Render service's host. No environment variables are needed: a production build calls `/api/...` on its own origin.
-
-**MongoDB Atlas:** Render's outbound IPs aren't fixed, so both clusters' Network Access lists must allow `0.0.0.0/0`.
-
-Render's free tier sleeps when idle, so the first request after a while (including the first demo login) can take about a minute.
+Rate limits are kept in each function instance's memory, so on Vercel they are approximate; the demo's one-chat-message rule is stored in MongoDB and is exact.
 
 ## Tests
 

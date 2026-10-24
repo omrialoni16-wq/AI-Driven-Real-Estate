@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "description": "Root of the Vercel project: frontend/ is the static site, api/ runs the backend/ Express app.",
+  "type": "module"
+}

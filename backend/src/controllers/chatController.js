@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import DemoChat from "../models/DemoChat.js";
 import {
   agentAddProperty,
   agentSearchPrices,
@@ -167,19 +168,15 @@ DEMO MODE: this user is a portfolio visitor trying a read-only demo, and this is
 
 // ─── Demo: one message per demo session ──────────────────────────────────────
 
-// demoId (from the demo JWT) → when its one message was sent. In memory: a
-// restart forgets it, which at worst gives a visitor one more message.
-const usedDemoChats = new Map();
-const DEMO_SESSION_MS = 60 * 60 * 1000; // matches the demo token's 1h expiry
-
-function claimDemoChat(demoId) {
-  const now = Date.now();
-  for (const [id, usedAt] of usedDemoChats) {
-    if (now - usedAt > DEMO_SESSION_MS) usedDemoChats.delete(id);
+// Inserting the demoId succeeds once; a second insert is a duplicate key.
+async function claimDemoChat(demoId) {
+  try {
+    await DemoChat.create({ _id: demoId });
+    return true;
+  } catch (error) {
+    if (error.code === 11000) return false;
+    throw error;
   }
-  if (usedDemoChats.has(demoId)) return false;
-  usedDemoChats.set(demoId, now);
-  return true;
 }
 
 // ─── Tool dispatch ────────────────────────────────────────────────────────────
@@ -275,7 +272,7 @@ export const handleChat = async (req, res) => {
         .json({ error: "Missing 'message' in request body." });
     }
 
-    if (isDemo && !claimDemoChat(req.user.demoId)) {
+    if (isDemo && !(await claimDemoChat(req.user.demoId))) {
       return res.status(403).json({
         code: "DEMO_CHAT_USED",
         message: "The demo allows one chat message.",
@@ -302,7 +299,7 @@ export const handleChat = async (req, res) => {
     });
   } catch (error) {
     // The visitor got no answer, so give them their one message back.
-    if (isDemo) usedDemoChats.delete(req.user.demoId);
+    if (isDemo) await DemoChat.deleteOne({ _id: req.user.demoId }).catch(() => {});
     console.error("Fatal error in handleChat pipeline:", error);
     return res.status(500).json({
       error: "Internal Server Error",

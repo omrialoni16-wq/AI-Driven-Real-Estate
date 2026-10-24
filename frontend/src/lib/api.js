@@ -2,8 +2,8 @@ import axios from "axios";
 import { toast } from "sonner";
 
 // In dev, requests go to the backend on port 5000. A production build calls
-// /api/... on its own origin, which Vercel forwards to the backend (vercel.json),
-// so the session cookie stays first-party. VITE_API_URL overrides both.
+// /api/... on its own origin, where Vercel runs the backend (api/index.js), so
+// the session cookie stays first-party. VITE_API_URL overrides both.
 const api = axios.create({
   baseURL:
     import.meta.env.VITE_API_URL ??

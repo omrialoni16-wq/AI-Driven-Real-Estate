@@ -17,8 +17,11 @@ Smoke-test and screenshot: `node .claude/skills/run-real-estate/smoke.mjs` (from
 ## Project layout
 
 ```
+api/
+  index.js                   # Vercel entry point: re-exports the Express app from backend/server.js
+vercel.json                  # One Vercel project: builds frontend/, rewrites /api/* to api/index.js
 backend/
-  server.js                  # Entry point — Express setup, connectDB, routes
+  server.js                  # Express setup, connectDB, routes; exports the app, listens only outside Vercel
   src/
     config/
       db.js                   # mongoose.connect(MONGO_URI) — properties DB
@@ -102,7 +105,7 @@ A "כניסה כאדמין דמו" button (header and login dialog) lets portfol
 - **Session:** `POST /api/auth/demo` (`demoLogin`) signs a 1h JWT with `{ userId: null, name, email, isDemo: true, demoId }`. There is no user row; `me` answers from the JWT. Rate-limited separately from login (`DEMO_RATE_LIMIT_MAX`, 20 per 15 min). `DEMO_ENABLED=false` removes the route.
 - **Writes:** `blockDemo` (after `requireAuth`) answers `403 { code: "DEMO_READ_ONLY" }` on property POST/PUT/DELETE, inquiry PATCH and register. **Any new write route needs `blockDemo` too.** The frontend's axios interceptor in `lib/api.js` shows one toast for that code; handlers check `isDemoReadOnly(error)` to skip their own `alert`/error.
 - **Inquiries:** `getInquiries` returns `listDemoInquiries` (fixed fake guests attached to real properties, same shape and paging as `listInquiries`), so real contact details never reach the demo.
-- **Chat:** one message per `demoId` (in-memory map in `chatController.js`; the message is given back if the pipeline errors), plus a per-IP limit for demo users only (`DEMO_CHAT_RATE_LIMIT_MAX`, 5/hour). In demo mode the client's `history` is ignored, `addProperty` returns `demo_blocked` without saving, the loop is capped at 4 iterations, and `DEMO_PROMPT_ADDENDUM` tells the model not to ask follow-ups. `AIChat.jsx` shows a demo welcome listing the capabilities, example-question chips, and locks the input after the message.
+- **Chat:** one message per `demoId` (a `demo_chats` document per used session, `models/DemoChat.js`, TTL 1h — in MongoDB because Vercel instances don't share memory; the message is given back if the pipeline errors), plus a per-IP limit for demo users only (`DEMO_CHAT_RATE_LIMIT_MAX`, 5/hour). In demo mode the client's `history` is ignored, `addProperty` returns `demo_blocked` without saving, the loop is capped at 4 iterations, and `DEMO_PROMPT_ADDENDUM` tells the model not to ask follow-ups. `AIChat.jsx` shows a demo welcome listing the capabilities, example-question chips, and locks the input after the message.
 - **UI:** a sticky amber banner ("מצב דמו · קריאה בלבד") with an exit button while `user.isDemo`.
 
 ## API
