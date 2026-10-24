@@ -28,7 +28,7 @@ const DEMO_SUGGESTIONS = [
 
 function AIChat({ isDemo = false, onActionCompleted }) {
   const [input, setInput] = useState("");
-  const [isMinimized, setIsMinimized] = useState(true);
+  const [isMinimized, setIsMinimized] = useState(!isDemo);
   const [messages, setMessages] = useState([
     {
       text: isDemo ? DEMO_WELCOME_MESSAGE : WELCOME_MESSAGE,

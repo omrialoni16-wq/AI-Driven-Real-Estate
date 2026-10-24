@@ -296,14 +296,6 @@ function App() {
               מצאו את הבית הבא שלכם
             </h2>
           </div>
-          <div className="text-start">
-            <div className="text-[34px] font-extrabold leading-none tracking-tight tabular-nums">
-              {totalProperties.toLocaleString()}
-            </div>
-            <div className="mt-1 text-[13px] font-semibold text-muted-foreground">
-              נכסים תואמים
-            </div>
-          </div>
         </section>
 
         <FilterBar filters={filters} setFilters={setFilters} />
