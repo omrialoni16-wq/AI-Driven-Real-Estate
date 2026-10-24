@@ -13,8 +13,9 @@ import inquiryRoutes from "./src/routes/InquiryRoutes.js";
 const app = express();
 
 // How many proxies sit in front of the app, so req.ip (and every rate limit) is
-// the visitor's IP. On Vercel that's 1, the default.
-if (process.env.NODE_ENV === "production") {
+// the visitor's IP. On Vercel that's 1, the default. Vercel sets VERCEL=1, so
+// this holds there even if NODE_ENV isn't set to production.
+if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
   const hops = Number(process.env.TRUST_PROXY_HOPS?.trim());
   app.set("trust proxy", Number.isInteger(hops) && hops > 0 ? hops : 1);
 }
@@ -33,8 +34,10 @@ app.use(
     const origin = req.header("Origin");
     // On Vercel the frontend and the API share one origin, and browsers still
     // send Origin on same-origin POST/PUT/DELETE. Allowing the request's own
-    // host covers the production domain and every preview URL.
-    const sameOrigin = origin === `${req.protocol}://${req.get("host")}`;
+    // host covers the production domain and every preview URL. Compared by host
+    // only: behind Vercel's proxy the request itself arrives as plain http.
+    const ownHost = req.get("x-forwarded-host") ?? req.get("host");
+    const sameOrigin = URL.canParse(origin ?? "") && new URL(origin).host === ownHost;
     if (!origin || sameOrigin || ALLOWED_ORIGINS.includes(origin)) {
       callback(null, { origin: true, credentials: true });
     } else {
