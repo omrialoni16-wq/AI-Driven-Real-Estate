@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 backend\.env
 backend/.env
+
+# Markdown docs stay local; FINDINGS.md is read by the test suite
+*.md
+!api-tests/FINDINGS.md
