@@ -56,7 +56,7 @@ frontend/
     App.jsx                   # Root: state, fetch, filter, pagination, login/logout header, admin-gated UI
     lib/
       utils.js                 # cn() class-merge helper (clsx + tailwind-merge)
-      api.js                    # Shared axios instance (baseURL: VITE_API_URL, else localhost:5000 in dev / same-origin in prod; withCredentials), demo read-only toast interceptor
+      api.js                    # Shared axios instance (baseURL: VITE_API_URL, else localhost:5000 when opened on localhost / same-origin elsewhere; withCredentials), demo read-only toast interceptor
     context/
       AuthContext.jsx          # user/isLoading state, login()/loginDemo()/logout(), GET /api/auth/me on mount
     components/

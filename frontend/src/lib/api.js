@@ -1,13 +1,16 @@
 import axios from "axios";
 import { toast } from "sonner";
 
-// In dev, requests go to the backend on port 5000. A production build calls
-// /api/... on its own origin, where Vercel runs the backend (api/index.js), so
-// the session cookie stays first-party. VITE_API_URL overrides both.
+// On this machine, requests go to the backend on port 5000. Anywhere else (the
+// Vercel site) they go to /api/... on the site's own origin, where Vercel runs
+// the backend (api/index.js), so the session cookie stays first-party. Decided
+// by hostname, not build mode: a build made with a stray NODE_ENV would
+// otherwise send visitors to their own localhost. VITE_API_URL overrides both.
+const isLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
 const api = axios.create({
   baseURL:
-    import.meta.env.VITE_API_URL ??
-    (import.meta.env.DEV ? "http://localhost:5000" : ""),
+    import.meta.env.VITE_API_URL ?? (isLocalhost ? "http://localhost:5000" : ""),
   withCredentials: true,
 });
 
